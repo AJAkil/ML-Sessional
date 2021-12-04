@@ -18,6 +18,47 @@ class Utility:
 
         pp.pprint(dict)
 
+    @staticmethod
+    def get_value_counts(df, num_cols):
+        for col in num_cols:
+            print(df[col].value_counts())
+
+    @staticmethod
+    def minMaxScaler(df, transformable_columns, label):
+        test = df.copy()
+
+        if label in transformable_columns:
+            transformable_columns.remove(label)
+
+        for col in transformable_columns:
+            print(col)
+            test[col] = MinMaxScaler().fit_transform(test[[col]])
+
+        return test
+
+    @staticmethod
+    def transformMinMaxScaler(df, transformable_columns, label):
+        test = df.copy()
+
+        if label in transformable_columns:
+            transformable_columns.remove(label)
+
+        for col in transformable_columns:
+            print(col)
+            test[col] = MinMaxScaler().fit_transform(test[[col]])
+
+        return test
+
+    @staticmethod
+    def transformKBinsDiscretizer(df, transformable_columns, label, bins):
+
+        if label in transformable_columns:
+            transformable_columns.remove(label)
+
+        for col in transformable_columns:
+            est = KBinsDiscretizer(n_bins=bins, encode='ordinal', strategy='uniform')
+            df[col] = est.fit_transform(df[[col]])
+
 def preprocess_churn_data(df, label):
 
     # create utility object
