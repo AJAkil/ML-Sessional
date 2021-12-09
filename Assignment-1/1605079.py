@@ -1,3 +1,4 @@
+#%%
 import pprint as pp
 import pandas as pd
 import numpy as np
@@ -209,7 +210,9 @@ class MetricCalculator:
         return (2 * self.TP) / (2 * self.TP + self.FP + self.FN)
 
 
+
+
 df = pd.read_csv('./data/cust_churn.csv')
 
-df = preprocess_churn_data(df, 'Churn')
 print(df.head())
+df = preprocess_churn_data(df, 'Churn')
