@@ -7,6 +7,9 @@ from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 import argparse
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, KBinsDiscretizer
+from sklearn.metrics import accuracy_score
+
+np.random.seed(111)
 
 
 class InformationGain:
@@ -21,7 +24,7 @@ class InformationGain:
         self.cont_to_bins_pipeline()  # careful here!
         gain_dict = {col: self.calculate_gain(col) for col in list(set(self.df.columns) - {self.label})}
         sorted_gain_dict = {k: v for k, v in sorted(gain_dict.items(), key=lambda item: item[1])}
-        print('Sorted gain dict:', sorted_gain_dict)
+        # print('Sorted gain dict:', sorted_gain_dict)
         cols_to_drop = list(sorted_gain_dict.keys())[:len(sorted_gain_dict) - num_of_features]
         final_cols = list(set(self.original_columns) - set(cols_to_drop))
         # print('Final Cols are: ==>')
@@ -40,12 +43,17 @@ class InformationGain:
             return data_entropy - attribute_remainder
 
     def calculate_remainder(self, attribute):
-        unique_vals, num_of_unique = np.unique(self.df[attribute], return_counts=True)
+        # print('testing ==> ', attribute)
+        # print(self.df[attribute].head())
+        unique_vals = self.df[attribute].unique().tolist()
 
         remainder_sum = 0
         for index, attrib_val in enumerate(unique_vals):
+
             # choosing the rows equal to the unique value in the attribute
             filtered_df = self.df.where(self.df[attribute] == attrib_val).dropna()
+
+            # print(f'{attrib_val} - {len(filtered_df)}')
 
             # calculating number of positive classed rows for the given attribute's unique value
             pk = len(filtered_df[filtered_df[self.label] == 1])
@@ -53,10 +61,12 @@ class InformationGain:
 
             # sanity check
             assert nk == len(filtered_df) - pk
+            # print(f'{attribute} - {attrib_val} (pk+nk): {pk+nk}')
 
             prob = (pk + nk) / (len(self.df))
-            attr_entropy = self.calculate_entropy(pk / (pk + nk))
-            remainder_sum += prob * attr_entropy
+            if prob != 0:
+                attr_entropy = self.calculate_entropy(pk / (pk + nk))
+                remainder_sum += prob * attr_entropy
 
         return remainder_sum
 
@@ -69,10 +79,13 @@ class InformationGain:
     def convert_cont_to_bins(self, old_col_name):
         min = self.df[old_col_name].min()
         median = self.df[old_col_name].median()
+        max = self.df[old_col_name].max()
+        epsilon = 1e-3
 
-        if min != median:
-            # print(old_col_name)
-            self.df[old_col_name + '_'] = pd.qcut(self.df[old_col_name], q=4, labels=['q1', 'q2', 'q3', 'q4'])
+        if len(self.df[old_col_name].unique()) > 2:
+            # print('Binning:', old_col_name)
+            self.df[old_col_name + '_'] = pd.cut(self.df[old_col_name], bins=[min - epsilon, median, max + epsilon],
+                                                 labels=['b1', 'b2'], duplicates='drop')
             self.df.drop(columns=[old_col_name], inplace=True)
             self.df.rename(columns={old_col_name + '_': old_col_name}, inplace=True)
 
@@ -193,7 +206,7 @@ class MetricCalculator:
         print(f'FN: {self.FN}')
 
         print(f'Accuracy: {self.calculate_accuracy()}')
-        print(f'Recall: {self.calculate_recall()}')
+        print(f'Recall (Sensitivity) : {self.calculate_recall()}')
         print(f'Specificity: {self.calculate_specificity()}')
         print(f'Precision: {self.calculate_precision()}')
         print(f'False Discovery Rate: {self.calculate_false_discovery_rate()}')
@@ -219,7 +232,11 @@ class MetricCalculator:
 
 
 def preprocess_churn_data(df, label, num_of_features):
+    #print("Preprocessing Churn Dataset")
     util = Utility()
+
+    if num_of_features > df.shape[1]:
+        num_of_features = df.shape[1]
 
     # print(len(df))
 
@@ -303,16 +320,244 @@ def preprocess_churn_data(df, label, num_of_features):
     df[label] = df[label].replace([0], -1)
 
     df.reset_index(inplace=True, drop=True)
-
+    #print('DONE')
     return df
 
 
-def preprocess_adult_data(df, label):
-    pass
+def preprocess_adult_data(train_df, test_df, label, num_of_features):
+    #print('Preprocessing Adult Dataset')
+    util = Utility()
+
+    if num_of_features > df.shape[1]:
+        print(f'Exceeded total features, using max {df.shape[1]} features')
+        num_of_features = df.shape[1]
+
+    test_df['income'].replace(regex=True, to_replace=r'\.', value='', inplace=True)
+    test_df.drop([0], inplace=True)
+
+    # dropping native country
+    train_df.drop('native-country', inplace=True, axis=1)
+    test_df.drop('native-country', inplace=True, axis=1)
+    # reset Index
+    train_df.reset_index(inplace=True, drop=True)
+    test_df.reset_index(inplace=True, drop=True)
+
+    # print info
+    # print(df.info())
+
+    # replacing all the ? with Nan
+    train_df.replace('?', np.nan, inplace=True)
+    test_df.replace('?', np.nan, inplace=True)
+
+    # get whitespace count
+    # get_whitespace_count(train_df)
+    # get_whitespace_count(test_df)
+
+    # checking if there is null
+    # print(train_df.isnull().sum())
+    # print(test_df.isnull().sum())
+
+    # # dropping native country
+    # df.drop('native-country', inplace=True, axis=1)
+
+    # removing Nan from labels
+    train_df.dropna(axis=0, subset=[label])
+    test_df.dropna(axis=0, subset=[label])
+
+    # print(train_df[label].unique())
+    # print(test_df[label].unique())
+
+    # converting the labels(y) to numeric labels
+    label_encoder = preprocessing.LabelEncoder()
+    train_df[label] = label_encoder.fit_transform(train_df['income'])
+    test_df[label] = label_encoder.fit_transform(test_df['income'])
+    # print('Train DF income')
+    # train_df['income'].unique()
+
+    # print('Test DF income')
+    # test_df['income'].unique()
+
+    # convert age column to integer
+    train_df['age'] = pd.to_numeric(train_df['age'], downcast="integer", errors='coerce')
+    test_df['age'] = pd.to_numeric(test_df['age'], downcast="integer", errors='coerce')
+
+    train_col_name_dict = util.get_all_cols(train_df)
+    test_col_name_dict = util.get_all_cols(test_df)
+
+    # removing categorical columns with mode( most frequent value)
+    for cat_col in train_col_name_dict['cat_cols_with_nan']:
+        train_df[cat_col].fillna(value=train_df[cat_col].mode()[0], inplace=True)
+
+    for cat_col in test_col_name_dict['cat_cols_with_nan']:
+        test_df[cat_col].fillna(value=test_df[cat_col].mode()[0], inplace=True)
+
+    if num_of_features != -1:
+        total_df = pd.concat([train_df, test_df])
+        total_df.reset_index(inplace=True, drop=True)
+
+        # get all columns
+        col_name_dict = util.get_all_cols(total_df)
+
+        # gain computations
+        temp_df = total_df.copy()
+        gainFilter = InformationGain(temp_df, col_name_dict['num_cols'], label)
+        final_cols = gainFilter.get_final_column_list(num_of_features=num_of_features)
+
+        # print('Final Cols are: ==>')
+        # print(final_cols)
+        train_df = train_df[final_cols]
+        test_df = test_df[final_cols]
+
+    # get all columns
+    train_col_name_dict = util.get_all_cols(train_df)
+    test_col_name_dict = util.get_all_cols(test_df)
+
+    # print(train_df.isnull().sum())
+    # print(test_df.isnull().sum())
+
+    # removing numerical columns with mean value
+    for num_col in train_col_name_dict["num_cols"]:
+        train_df[num_col].fillna(value=train_df[num_col].mean(), inplace=True)
+
+    for num_col in test_col_name_dict["num_cols"]:
+        test_df[num_col].fillna(value=test_df[num_col].mean(), inplace=True)
+
+    # print(train_df.isnull().sum())
+    # print(test_df.isnull().sum())
+
+    # one hot encoding the categorical cols
+    train_df = pd.get_dummies(train_df, columns=list(
+        set(train_col_name_dict['cat_cols']) - set(train_col_name_dict['binary_cols'])))
+
+    # label encoding the binary cols
+    for col in list(set(train_col_name_dict['binary_cols']) - set(label)):
+        label_encoder = preprocessing.LabelEncoder()
+        train_df[col] = label_encoder.fit_transform(train_df[col])
+
+    test_df = pd.get_dummies(test_df,
+                             columns=list(set(test_col_name_dict['cat_cols']) - set(test_col_name_dict['binary_cols'])))
+
+    # label encoding the binary cols
+    for col in list(set(test_col_name_dict['binary_cols']) - set(label)):
+        label_encoder = preprocessing.LabelEncoder()
+        test_df[col] = label_encoder.fit_transform(test_df[col])
+
+    # standardize the numerical columns only
+    if len(list(set(train_col_name_dict['num_cols']) - set(train_col_name_dict['binary_cols']))) != 0:
+        train_df = util.transformStandardScaler(train_df, list(
+            set(train_col_name_dict['num_cols']) - set(train_col_name_dict['binary_cols'])), label)
+
+    if len(list(set(test_col_name_dict['num_cols']) - set(test_col_name_dict['binary_cols']))) != 0:
+        test_df = util.transformStandardScaler(test_df, list(
+            set(test_col_name_dict['num_cols']) - set(test_col_name_dict['binary_cols'])), label)
+
+    # changing the scale
+    train_df[label] = train_df[label].replace([0], -1)
+    test_df[label] = test_df[label].replace([0], -1)
+
+    # print(df.head())
+    #print('DONE')
+    return train_df, test_df
 
 
-def preprocess_credit_card_fraud_data(df, label):
-    pass
+def preprocess_credit_card(df, label, fract_neg_class, num_of_negative_sample, num_of_features):
+    #print("Preprocessing Fraud Dataset")
+    util = Utility()
+    # print(df.info())
+
+    # reset Index
+    df.reset_index(inplace=True, drop=True)
+
+    # print info
+    # print(df.info())
+
+    # replacing all the ? with Nan
+    df.replace('?', np.nan, inplace=True)
+
+    # get whitespace count
+    # get_whitespace_count(df)
+
+    # checking ig there is null
+    # print(df.isnull().sum())
+
+    # converting the labels(y) to numeric labels
+    label_encoder = preprocessing.LabelEncoder()
+    df[label] = label_encoder.fit_transform(df[label])
+
+    # print(df.head(20))
+
+    # print(df.dtypes)
+
+    # get all columns
+    col_names = util.get_all_cols(df)
+
+    # removing categorical columns with mode( most frequent value)
+    for cat_col in col_names['cat_cols_with_nan']:
+        df[cat_col].fillna(value=df[cat_col].mode()[0], inplace=True)
+
+    # print(df.isnull().sum())
+
+    # removing numerical columns with mean value
+    for num_col in col_names['num_cols_with_nan']:
+        df[num_col].fillna(value=df[num_col].mean(), inplace=True)
+
+    # print(df.isnull().sum())
+
+    if num_of_features != -1:
+        # gain computations
+        temp_df = df.copy()
+        gainFilter = InformationGain(temp_df, col_names['num_cols'], label)
+        final_cols = gainFilter.get_final_column_list(num_of_features=num_of_features)
+
+        # print('Final Cols are: ==>')
+        # print(final_cols)
+        # print('Done')
+        df = df[final_cols]
+
+    col_names = util.get_all_cols(df)
+
+    # one hot encoding the categorical cols
+    df = pd.get_dummies(df, columns=list(set(col_names['cat_cols']) - set(col_names['binary_cols'])))
+
+    # label encoding the binary cols
+    for col in list(set(col_names['binary_cols']) - set(label)):
+        label_encoder = preprocessing.LabelEncoder()
+        df[col] = label_encoder.fit_transform(df[col])
+
+    if len(list(set(col_names['num_cols']) - set(col_names['binary_cols']))) != 0:
+        df = util.transformMinMaxScaler(df, list(set(col_names['num_cols']) - set(col_names['binary_cols'])), label)
+
+    # changing the scale
+    df[label] = df[label].replace([0], -1)
+
+    # choosing all positive class and less negative classes
+    # print(len(df))
+    normal_indices = df[df[label] == -1].index
+    fraud_indices = df[df[label] == 1].index
+
+    # print('Length of normal_indices', len(normal_indices))
+    # print('Length of fraud indices', len(fraud_indices))
+
+    # sanity check
+    assert len(normal_indices.tolist() + fraud_indices.tolist()) == len(df)
+
+    if fract_neg_class == -1:
+        random_normal_indices = np.random.choice(normal_indices, num_of_negative_sample, replace=False)
+    else:
+        random_normal_indices = np.random.choice(normal_indices, fract_neg_class * len(fraud_indices), replace=False)
+
+    random_normal_sample_df = df.iloc[random_normal_indices, :]
+
+    fraud_df = df.iloc[fraud_indices, :]
+
+    final_df = pd.concat([random_normal_sample_df, fraud_df])
+
+    final_df.reset_index(inplace=True, drop=True)
+
+    # print(final_df.head(2))
+    # print(final_df.shape)
+    #print("DONE")
+    return final_df
 
 
 class LogisticRegression:
@@ -389,15 +634,27 @@ class LogisticRegression:
 
             assert y_h_w.shape == tan_der.shape
 
+            # update the weights here
             self.weights = self.weights + (2 * self.learning_rate) * (1 / n_samples) * np.matmul(X_T, np.multiply(y_h_w,
                                                                                                                   tan_der))
+
+            # calculating mse with updated weights
             cost = self.calculate_mse_cost(y_h_w)
             self.cost_history[epoch] = cost
 
-            if cost < self.early_stop_error:
-                print(cost)
-                print('Stopping Training since the error is less than 0.5')
+            # computing 1 - acc for making weak learner
+            y_train_pred = self.predict(self.x_train)
+            accuracy = accuracy_score(self.y_train, y_train_pred)
+            # print(accuracy)
+
+            if 1 - accuracy < self.early_stop_error:
+                # print('Stopping Training since the error is less than 0.5')
                 break
+
+            # if cost < self.early_stop_error:
+            #     print(cost)
+            #     print('Stopping Training since the error is less than 0.5')
+            #     break
 
         if not no_curve:
             self.plot_cost_vs_iteration()
@@ -492,7 +749,7 @@ class Adaboost:
 
         return X, y
 
-    def fit(self, base_learner_max_iter, error, learning_rate, decay):
+    def fit(self, base_learner_max_iter, error, learning_rate, decay, var_lr):
 
         # setting the weights
         N = self.train_df.shape[0]
@@ -519,7 +776,7 @@ class Adaboost:
             lgr_learner.y_train = y
 
             # train the weak learner
-            lgr_learner.fit(is_constant_lr=True, no_curve=True, calculate_metric_on_train=False)
+            lgr_learner.fit(is_constant_lr=var_lr, no_curve=True, calculate_metric_on_train=False)
 
             # storing the weak learner
             self.h[k] = lgr_learner
@@ -573,14 +830,16 @@ class Adaboost:
             preds.append(weighted_preds)
 
         preds = np.array(preds).squeeze().T
-        #print(preds.shape)
+        # print(preds.shape)
 
         weighted_sum_result = np.sum(preds, axis=1)
         weighted_sum_result[weighted_sum_result > 0] = 1
         weighted_sum_result[weighted_sum_result <= 0] = -1
 
-        metric = MetricCalculator(y, weighted_sum_result)
-        metric.calculate_all_metric()
+        # metric = MetricCalculator(y, weighted_sum_result)
+        # metric.calculate_all_metric()
+        accuracy = accuracy_score(y_true=y, y_pred=weighted_sum_result)
+        print(f'Accuracy: {accuracy}')
 
     def normalize_data_weights(self):
         total_data_weight = sum(self.W)
@@ -588,34 +847,158 @@ class Adaboost:
         self.W = W
 
 
-def run_churn_adaboost(df):
-    print('Adaboost Training Metric (Churn Dataset)')
-    adaboost_classifier = Adaboost(num_of_learner=10, test_size=0.2)
-    adaboost_classifier.split_dataset(df=df, label='Churn')
-    adaboost_classifier.fit(base_learner_max_iter=1000, error=0.5, learning_rate=0.1, decay=5e-6)
-
-    print('Adaboost Testing Metric (Churn Dataset)')
-    adaboost_classifier.predict()
-
-
-def run_churn_lgr(df):
+def run_churn_lgr(df, label):
     print('Logistic Regression Training Metric (Churn Dataset)')
     lgr = LogisticRegression(learning_rate=0.1, max_iter=1000, test_size=0.2, early_stop_error=0, decay=5e-6)
-    lgr.split_dataset(df, 'Churn')
-    lgr.fit(is_constant_lr=False, no_curve=False, calculate_metric_on_train=True)
+    lgr.split_dataset(df, label)
+    lgr.fit(is_constant_lr=False, no_curve=True, calculate_metric_on_train=True)
 
-    print('Logistic Regression Testing Metric (Churn Dataset)')
+    print('\nLogistic Regression Testing Metric (Churn Dataset)')
     lgr.generate_metric()
+    print()
 
 
-def run_churn_all(df):
-    run_churn_lgr(df)
-    run_churn_adaboost(df)
+def run_churn_adaboost(df, label, boosting_rounds):
+    print('Adaboost Training Metric (Churn Dataset)')
+    adaboost_classifier = Adaboost(num_of_learner=boosting_rounds, test_size=0.2)
+    adaboost_classifier.split_dataset(df=df, label=label)
+    adaboost_classifier.fit(base_learner_max_iter=1000, error=0.5, learning_rate=0.1, decay=5e-6, var_lr=False)
+
+    print('\nAdaboost Testing Metric (Churn Dataset)')
+    adaboost_classifier.predict()
+    print()
+
+
+def run_adult_lgr(train_df, test_df, label):
+    print('Logistic Regression Training Metric (Adult Income Dataset)')
+    lgr = LogisticRegression(learning_rate=0.1, max_iter=1000, test_size=0.2, early_stop_error=0, decay=6e-6)
+    lgr.split_given_train_test_df(train_df, test_df, label)
+    lgr.fit(is_constant_lr=True, no_curve=True, calculate_metric_on_train=True)
+
+    print('\nLogistic Regression Testing Metric (Adult Income Dataset)')
+    lgr.generate_metric()
+    print()
+
+
+def run_adult_adaboost(train_df, test_df, label, boosting_rounds):
+    print('Adaboost Training Metric (Adult Income Dataset)')
+    adaboost_classifier = Adaboost(num_of_learner=boosting_rounds, test_size=0.2)
+    adaboost_classifier.split_dataset_given_tran_test(train_df, test_df, label)
+    adaboost_classifier.fit(base_learner_max_iter=1000, error=0.5, learning_rate=0.1, decay=5e-6, var_lr=False)
+
+    print('\nAdaboost Testing Metric (Adult Income Dataset)')
+    adaboost_classifier.predict()
+    print()
+
+
+def run_fraud_lgr(df, label):
+    print('Logistic Regression Training Metric (Fraud Dataset)')
+    lgr = LogisticRegression(learning_rate=0.1, max_iter=1000, test_size=0.2, early_stop_error=0, decay=6e-6)
+    lgr.split_dataset(df, label)
+    lgr.fit(is_constant_lr=True, no_curve=True, calculate_metric_on_train=True)
+
+    print('\nLogistic Regression Testing Metric (Fraud Dataset)')
+    lgr.generate_metric()
+    print()
+
+
+def run_fraud_adaboost(df, label, boosting_rounds):
+    print('Adaboost Training Metric (Fraud Dataset)')
+    adaboost_classifier = Adaboost(num_of_learner=boosting_rounds, test_size=0.2)
+    adaboost_classifier.split_dataset(df, label=label)
+    adaboost_classifier.fit(base_learner_max_iter=1000, error=0.5, learning_rate=0.1, decay=5e-6, var_lr=False)
+
+    print('\nAdaboost Testing Metric (Fraud Dataset)')
+    adaboost_classifier.predict()
+    print()
+
+
+def run_churn_all(df, label, boosting_rounds):
+    run_churn_lgr(df, label)
+    run_churn_adaboost(df, label, boosting_rounds)
+
+
+def run_adult_all(train_df, test_df, label, boosting_rounds):
+    run_adult_lgr(train_df, test_df, label)
+    run_adult_adaboost(train_df, test_df, label, boosting_rounds)
+
+
+def run_fraud_all(df, label, boosting_rounds):
+    run_fraud_lgr(df, label)
+    run_fraud_adaboost(df, label, boosting_rounds)
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('./data/cust_churn.csv')
-    df = preprocess_churn_data(df=df, label='Churn', num_of_features=8)
+    # Create the parser
+    parser = argparse.ArgumentParser(
+        description='arguments to parse')
 
-    # running on the first dataset
-    run_churn_all(df)
+    # Add the arguments
+    parser.add_argument('--churn',
+                        metavar='churn',
+                        type=str,
+                        help='the path to the churn dataset')
+
+    parser.add_argument('--adult',
+                        metavar='adult',
+                        type=str,
+                        help='the path to the adult train and test dataset (folder of the dataset)')
+
+    parser.add_argument('--fraud',
+                        metavar='fraud',
+                        type=str,
+                        help='the path to the fraud dataset')
+
+    parser.add_argument('--dataset',
+                        metavar='dataset',
+                        type=int,
+                        help='please give input which dataset to run as (0,1,2,3) - 0 for all')
+
+    parser.add_argument('--featnum',
+                        metavar='featnum',
+                        type=int,
+                        help='top k feature to filter with IGain')
+
+    parser.add_argument('--brounds',
+                        metavar='brounds',
+                        type=int,
+                        help='number of boosting rounds')
+
+    # Execute the parse_args() method
+    args = parser.parse_args()
+
+    churn_data_path = args.churn
+    adult_data_path = args.adult
+    fraud_data_path = args.fraud
+    dataset_to_use = args.dataset
+    num_of_feature = args.featnum
+    boosting_rounds = args.brounds
+
+    # preprocess churn dataset
+    df = pd.read_csv(churn_data_path)
+    df = preprocess_churn_data(df=df, label='Churn', num_of_features=num_of_feature)
+
+    # preprocess adult dataset
+    columns = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status', 'occupation',
+               'relationship',
+               'race', 'sex', 'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'income']
+    train_df = pd.read_csv(adult_data_path+'/adult.data', names=columns, header=None, sep=", ", engine='python')
+    test_df = pd.read_csv(adult_data_path + '/adult.test', names=columns, header=None, sep=", ", engine='python')
+    train_df, test_df = preprocess_adult_data(train_df=train_df, test_df=test_df, label='income', num_of_features=num_of_feature)
+
+    # preprocess credit card fraud dataset
+    crd_fraud_df = pd.read_csv(fraud_data_path)
+    crd_fraud_df = preprocess_credit_card(crd_fraud_df, 'Class', fract_neg_class=-1, num_of_negative_sample=5000,
+                                          num_of_features=num_of_feature)
+
+    if dataset_to_use == 0:
+        run_churn_all(df, 'Churn', boosting_rounds)
+        run_adult_all(train_df, test_df, 'income', boosting_rounds)
+        run_fraud_all(crd_fraud_df, 'Class', boosting_rounds)
+    elif dataset_to_use == 1:
+        run_churn_all(df, 'Churn', boosting_rounds)
+    elif dataset_to_use == 2:
+        run_adult_all(train_df, test_df, 'income', boosting_rounds)
+    else:
+        run_fraud_all(crd_fraud_df, 'Class', boosting_rounds)
+
