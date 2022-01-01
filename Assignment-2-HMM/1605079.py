@@ -1,4 +1,5 @@
 import numpy as np
+from statistics import NormalDist
 
 
 class HMM:
@@ -16,11 +17,10 @@ class HMM:
 
     def set_initial_probs(self):
         # modifying the transition probability matrices by subtracting diagonal elements
-        transition_probs = self.transition_probs.T
+        transition_probs = np.copy(self.transition_probs).T
         modified_diag_elems = np.diagonal(transition_probs) - 1
         row, col = np.diag_indices(transition_probs.shape[0])
         transition_probs[row, col] = modified_diag_elems
-        # print(transition_probs)
 
         # taking all rows except the last one
         transition_probs = transition_probs[:-1, :]
@@ -37,8 +37,8 @@ class HMM:
         b = np.zeros(coefficient_matrix.shape[0])
         b[-1] = 1
 
-        print(coefficient_matrix)
-        print(b)
+        # print(coefficient_matrix)
+        # print(b)
 
         # solving to get the initial state
         self.initial_state = np.linalg.solve(coefficient_matrix, b)
@@ -51,6 +51,46 @@ class HMM:
         of the backtracking values
         """
         probability_matrix = np.zeros((self.num_states, total_time_stamps))
+        max_state_index_tracker = np.zeros((self.num_states, total_time_stamps)).astype(np.int32)
+
+        # setting the initial state of the probability matrix and the max state tracker matrix
+        for state_no in range(self.num_states):
+            # setting the first column(s) of probability matrix
+            probability_matrix[state_no, 0] = np.log(self.initial_state[state_no] *
+                                                     self._get_emission_prob(state_no=state_no, time_stamp=0))
+
+        max_state_index_tracker[:, 0] = 0  # as the first state did not emerge from other state
+        # print(probability_matrix)
+
+        for time_stamp in range(1, total_time_stamps):
+            for state_no in range(self.num_states):
+
+                # first calculate the emission probability from gaussian pdf
+                emission_current_state = self._get_emission_prob(state_no=state_no, time_stamp=time_stamp)
+
+                """
+                for state a:
+                    for updating a2 we calculate the following
+                    temp = P[a1, b1] + log(T[a1->a2, b1->a2] * e_a2]
+                    temp (2,1)
+                    P[a2] = np.max(temp [something, something])
+                """
+                # calculate temp value by slicing
+                temp = probability_matrix[:, time_stamp - 1].reshape(num_states, 1) + \
+                    np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state)
+
+                assert temp.shape == (num_states, 1)
+
+                # setting the max of all the states to update the value of a state in the current time stamp
+                probability_matrix[state_no, time_stamp] = np.max(temp)
+
+                # find argmax ans set the arg matrix
+                max_state_index_tracker[state_no, time_stamp] = np.argmax(temp)
+
+    def _get_emission_prob(self, state_no, time_stamp):
+        prob_dist_params = self.gaussian_params[:, state_no]
+        return NormalDist(mu=prob_dist_params[0], sigma=prob_dist_params[1]). \
+            pdf(self.observations[time_stamp])
 
     def baulm_welch_learn(self):
         pass
@@ -89,6 +129,7 @@ if __name__ == '__main__':
         observations=np.array(observations)
     )
 
-    # hmm.show_hmm_params()
+    hmm.show_hmm_params()
     hmm.set_initial_probs()
+    hmm.viterbi()
     # print(hmm.observations)
