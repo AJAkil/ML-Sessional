@@ -86,13 +86,12 @@ class HMM:
                 """
                 # print("DEBUG")
                 # print(probability_matrix[:, time_stamp - 1].reshape(num_states, 1))
-                # print(self.transition_probs[:, state_no].reshape(num_states, 1))
                 # print(emission_current_state)
                 # print(np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state))
 
                 # calculate temp value by slicing
                 temp = probability_matrix[:, time_stamp - 1].reshape(num_states, 1) \
-                    + np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state)
+                       + np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state)
 
                 assert temp.shape == (num_states, 1)
 
@@ -114,7 +113,8 @@ class HMM:
 
     def generate_most_probable_states(self):
         hidden_states, probability_matrix, state_index = self.run_viterbi()
-        most_probable_states = ["El Nino\n" if state == 0 else "La Nina\n" for state in hidden_states]
+        print(len(hidden_states))
+        most_probable_states = ["El Nino\n" if state == 1 else "La Nina\n" for state in hidden_states]
 
         output = open(
             '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/output.txt',
@@ -131,13 +131,11 @@ class HMM:
 
         for col in range(probability_matrix.shape[1]):
             data = ' '.join([str(val) for val in probability_matrix[:, col]])
-            probaility.write(data+'\n')
-
+            probaility.write(data + '\n')
 
         for col in range(state_index.shape[1]):
             data = ' '.join([str(val) for val in state_index[:, col]])
-            state.write(data+'\n')
-
+            state.write(data + '\n')
 
     def _get_emission_prob(self, state_no, time_stamp):
         prob_dist_params = self.gaussian_params[:, state_no]
@@ -150,8 +148,61 @@ class HMM:
         return NormalDist(mu=prob_dist_params[0], sigma=prob_dist_params[1]). \
             pdf(self.observations[time_stamp])
 
+    def calculate_forward_probs(self):
+        total_time_stamps = len(self.observations)
+        """
+        we set up one matrix to keep track of the outcome likelihood
+        """
+        forward_matrix = np.zeros((self.num_states, total_time_stamps))
+
+        assert forward_matrix.shape == (self.num_states, total_time_stamps)
+
+        # setting the initial state of the forward matrix
+        for state_no in range(self.num_states):
+            forward_matrix[state_no, 0] = np.log(self.initial_state[state_no] *
+                                                 self._get_emission_prob(state_no=state_no, time_stamp=0))
+
+        for time_stamp in range(1, total_time_stamps):
+            for state_no in range(self.num_states):
+                # first calculate the emission probability from gaussian pdf
+                emission_current_state = self._get_emission_prob(state_no=state_no, time_stamp=time_stamp)
+
+                """
+                for state a:
+                    for updating a2 we calculate the following
+                    temp = f[a1, b1] * T[a1->a2, b1->a2] * e_a2 (element wise product)
+                    temp (2,1)
+                    f[a2] = np.sum(temp [something, something], axis=column wise)
+                """
+
+                # calculate temp value by slicing
+                temp = forward_matrix[:, time_stamp - 1].reshape(num_states, 1) * \
+                       self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state
+
+                assert temp.shape == (num_states, 1)
+
+                # summing along the axes of the temp vector
+                forward_matrix[state_no, time_stamp] = np.sum(temp, axis=0)
+
+        f_sink = np.sum(forward_matrix[:, -1])
+
+        return forward_matrix, f_sink
+
+    def calculate_backward_probs(self):
+        pass
+
+    def calculate_responsibility_matrix_1(self):
+        pass
+
+    def calculate_responsibility_matrix_2(self):
+        pass
+
     def baulm_welch_learn(self):
         pass
+
+    def E_step(self):
+        forward_matrix, f_sink = self.calculate_forward_probs()
+        print(f_sink)
 
 
 class FileHandler:
