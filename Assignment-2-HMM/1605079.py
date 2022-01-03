@@ -1,15 +1,17 @@
 import numpy as np
+import os
 from statistics import NormalDist
 
 np.random.seed(79)
 
 
 class HMM:
-    def __init__(self, transition_probs, gaussian_params, num_states, observations):
+    def __init__(self, transition_probs, gaussian_params, num_states, observations, output_path):
         self.transition_probs = transition_probs
         self.gaussian_params = gaussian_params
         self.num_states = num_states
         self.observations = observations
+        self.output_path = output_path
         self.initial_state = []
 
     def show_hmm_params(self):
@@ -20,9 +22,9 @@ class HMM:
         print(f'Gaussian Params Shape:\n {self.gaussian_params.shape}')
         print(f'Observation Params Shape:\n {self.observations.shape}')
 
-    def set_initial_probs(self):
+    def set_initial_probs(self, transition_probs):
         # modifying the transition probability matrices by subtracting diagonal elements
-        transition_probs = np.copy(self.transition_probs).T
+        transition_probs = np.copy(transition_probs).T
         modified_diag_elems = np.diagonal(transition_probs) - 1
         row, col = np.diag_indices(transition_probs.shape[0])
         transition_probs[row, col] = modified_diag_elems
@@ -63,14 +65,6 @@ class HMM:
 
         # setting the initial state of the probability matrix and the max state tracker matrix
         for state_no in range(self.num_states):
-            # print('Setting initial probabilites')
-            # print(self.observations[0])
-            # # setting the first column(s) of probability matrix
-            # print(self.initial_state[state_no])
-            # print(self._get_emission_prob(state_no=state_no, time_stamp=0))
-            #
-            # print('Start:',
-            #       np.log(self.initial_state[state_no] * self._get_emission_prob(state_no=state_no, time_stamp=0)))
             probability_matrix[state_no, 0] = np.log(self.initial_state[state_no] *
                                                      self._get_emission_prob(state_no=state_no, time_stamp=0))
 
@@ -89,10 +83,6 @@ class HMM:
                     temp (2,1)
                     P[a2] = np.max(temp [something, something])
                 """
-                # print("DEBUG")
-                # print(probability_matrix[:, time_stamp - 1].reshape(num_states, 1))
-                # print(emission_current_state)
-                # print(np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state))
 
                 # calculate temp value by slicing
                 temp = probability_matrix[:, time_stamp - 1].reshape(num_states, 1) \
@@ -116,31 +106,31 @@ class HMM:
 
         return hidden_states, probability_matrix, max_state_index_tracker
 
-    def generate_most_probable_states(self):
+    def generate_most_probable_states(self, with_learning=False):
+        output_file_name = 'output_learning.txt' if with_learning else 'output.txt'
         hidden_states, probability_matrix, state_index = self.run_viterbi()
-        print(len(hidden_states))
         most_probable_states = ["\"El Nino\"\n" if state == 0 else "\"La Nina\"\n" for state in hidden_states]
 
         output = open(
-            '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/output.txt',
+            f'{self.output_path}/{output_file_name}',
             'w+')
-        probaility = open(
-            '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/probabilities.txt',
-            'w+')
-
-        state = open(
-            '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/state.txt',
-            'w+')
+        # probaility = open(
+        #     '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/probabilities.txt',
+        #     'w+')
+        #
+        # state = open(
+        #     '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/state.txt',
+        #     'w+')
 
         output.writelines(most_probable_states)
 
-        for col in range(probability_matrix.shape[1]):
-            data = ' '.join([str(val) for val in probability_matrix[:, col]])
-            probaility.write(data + '\n')
-
-        for col in range(state_index.shape[1]):
-            data = ' '.join([str(val) for val in state_index[:, col]])
-            state.write(data + '\n')
+        # for col in range(probability_matrix.shape[1]):
+        #     data = ' '.join([str(val) for val in probability_matrix[:, col]])
+        #     probaility.write(data + '\n')
+        #
+        # for col in range(state_index.shape[1]):
+        #     data = ' '.join([str(val) for val in state_index[:, col]])
+        #     state.write(data + '\n')
 
     def _get_emission_prob(self, state_no, time_stamp):
         prob_dist_params = self.gaussian_params[:, state_no]
@@ -148,7 +138,7 @@ class HMM:
             pdf(self.observations[time_stamp])
 
     def _get_emission_prob_EM(self, state_no, time_stamp, gaussian_params):
-        #print('In here', gaussian_params, time_stamp, state_no)
+        # print('In here', gaussian_params, time_stamp, state_no)
         prob_dist_params = gaussian_params[:, state_no]
         return NormalDist(mu=prob_dist_params[0], sigma=np.sqrt(prob_dist_params[1])). \
             pdf(self.observations[time_stamp])
@@ -160,6 +150,8 @@ class HMM:
         """
         forward_matrix = np.zeros((self.num_states, total_time_stamps), dtype=np.float64)
 
+        self.set_initial_probs(transition_probs)
+        #print(self.initial_state)
         # setting the initial state of the forward matrix
         for state_no in range(self.num_states):
             forward_matrix[state_no, 0] = self.initial_state[state_no] * \
@@ -224,7 +216,7 @@ class HMM:
                 for incoming_state in range(self.num_states):
                     # first calculate the emission probability from gaussian pdf
                     emission_incoming_state = self._get_emission_prob_EM(state_no=incoming_state, time_stamp=time_stamp,
-                                                                        gaussian_params=gaussian_parameters)
+                                                                         gaussian_params=gaussian_parameters)
 
                     """
                     for state a:
@@ -234,7 +226,7 @@ class HMM:
                         b[a2] = np.sum(temp [something, something], axis=column wise)
                     """
                     temp_sum += backward_matrix[incoming_state, time_stamp] * \
-                        transition_probs[current_state, incoming_state] * emission_incoming_state
+                                transition_probs[current_state, incoming_state] * emission_incoming_state
 
                     # summing along the axes of the temp vector
                 backward_matrix[current_state, time_stamp - 1] = temp_sum
@@ -280,51 +272,96 @@ class HMM:
 
                     # print(time_stamp, emission_state_2, state_1, state_2, responsibility_matrix_2[state_1, time_stamp])
         # normalize to make the column sum to 1
-        responsibility_matrix_2 = self._normalize_along_timestamp(responsibility_matrix_2, total_time_stamps-1)
+        responsibility_matrix_2 = self._normalize_along_timestamp(responsibility_matrix_2, total_time_stamps - 1)
 
         return responsibility_matrix_2
 
-    def baulm_welch_learn(self):
-        epochs = 100
-        # gaussian_params = np.random.randint(500, size=(self.gaussian_params.shape[0], self.gaussian_params.shape[1]))
-        # transition_probs = np.random.rand(self.transition_probs.shape[0], self.transition_probs.shape[1])
-        learned_gaussian_params = self.gaussian_params
-        learned_transition_probs = self.transition_probs
-        # responsibility_matrix_1, responsibility_matrix_2 = self.e_step(transition_probs, gaussian_params)
+    def baulm_welch_learn(self, useRandom=False, epochs=10):
+
+        if useRandom:
+            # print('In Random')
+            learned_gaussian_params = np.random.randint(low=80, high=180, size=(self.gaussian_params.shape[0], self.gaussian_params.shape[1]))
+            learned_transition_probs = np.random.uniform(low=0, high=1, size=(self.transition_probs.shape[0], self.transition_probs.shape[1]))
+            learned_transition_probs = learned_transition_probs / np.sum(learned_transition_probs, axis=1)[:, np.newaxis]
+            # print(learned_transition_probs)
+            # print(learned_gaussian_params)
+        else:
+            learned_gaussian_params = self.gaussian_params
+            learned_transition_probs = self.transition_probs
+        # print('initial', learned_transition_probs)
+        # print(learned_gaussian_params)
+
+
+        # responsibility_matrix_1, responsibility_matrix_2 = self.e_step(learned_transition_probs, learned_gaussian_params)
+        # learned_transition_probs, learned_gaussian_params = self.m_step(responsibility_matrix_1,
+        #                                                                 responsibility_matrix_2)
 
         prev_gaussian_params = learned_gaussian_params
+        prev_transitions = learned_transition_probs
 
         for iteration in range(epochs):
-            responsibility_matrix_1, responsibility_matrix_2 = self.e_step(learned_transition_probs, learned_gaussian_params)
-            learned_transition_probs, learned_gaussian_params = self.m_step(responsibility_matrix_1, responsibility_matrix_2)
 
-            if np.abs(prev_gaussian_params[0, 0] - learned_gaussian_params[0, 0]) < 0.000001:
-                print(f'Breaking After {iteration} iteration')
+            if iteration % 10 == 0 and iteration != 0:
+                print(f'Ran {iteration} iteration')
+            responsibility_matrix_1, responsibility_matrix_2 = self.e_step(learned_transition_probs,
+                                                                           learned_gaussian_params)
+            learned_transition_probs, learned_gaussian_params = self.m_step(responsibility_matrix_1,
+                                                                            responsibility_matrix_2)
+
+            convergence_criteria = np.sum(np.abs(prev_transitions - learned_transition_probs)) \
+                                   + np.sum(np.abs(prev_gaussian_params - learned_gaussian_params))
+
+            #print('convergence criteria', convergence_criteria)
+            if convergence_criteria < 0.00001:
+                print(f'Parameter Estimation Converged at {iteration + 1} iteration')
                 break
 
-            prev_gaussian_params = learned_gaussian_params
+            # if np.abs(prev_gaussian_params[0, 0] - learned_gaussian_params[0, 0]) < 0.000001:
+            #     print(f'Breaking After {iteration} iteration')
+            #     break
 
-        print('The Parameters:', learned_gaussian_params)
-        print('Transitions:', learned_transition_probs)
+            prev_gaussian_params = learned_gaussian_params
+            prev_transitions = learned_transition_probs
+
+        # print(iteration)
+        # print('The Parameters:', learned_gaussian_params)
+        # print('Transitions:', learned_transition_probs)
+
+        self.generate_parameter_output_file(learned_transition_probs, learned_gaussian_params)
+
+        return learned_transition_probs, learned_gaussian_params
+
+    def generate_parameter_output_file(self, learned_transition_probs, learned_gaussian_params):
+        parameter_file = open(
+            f'{self.output_path}/Parameters.txt',
+            'w+')
+
+        parameter_file.write(str(self.num_states) + '\n')
+
+        for state in range(self.num_states):
+            parameter_file.write('    '.join([str(t) for t in learned_transition_probs[state, :]]) + '\n')
+
+        for index in range(2):
+            parameter_file.write('    '.join([str(t) for t in learned_gaussian_params[index, :]]) + '\n')
+
+        parameter_file.write('    '.join([str(p) for p in self.initial_state]) + '\n')
 
     def e_step(self, transition_probs, gaussian_parameters):
-        print(transition_probs)
-        print(gaussian_parameters)
         forward_matrix, f_sink = self.calculate_forward_probs(transition_probs, gaussian_parameters)
-        print('f_sink: ', f_sink)
+        # print('f_sink: ', f_sink)
         backward_matrix = self.calculate_backward_probs(transition_probs, gaussian_parameters)
         # print('forward matrices:', forward_matrix[:, :50])
         # print('backward matrices:', backward_matrix[:, :50])
 
-        self.write_to_file(forward_matrix, 'forward.txt')
-        self.write_to_file(backward_matrix, 'backward.txt')
+        #self.write_to_file(forward_matrix, 'forward.txt')
+        #self.write_to_file(backward_matrix, 'backward.txt')
 
         responsibility_matrix_1 = self.calculate_responsibility_matrix_1(forward_matrix, backward_matrix, f_sink)
         responsibility_matrix_2 = self.calculate_responsibility_matrix_2(forward_matrix, backward_matrix, f_sink,
                                                                          gaussian_parameters, transition_probs)
 
-        self.write_to_file(responsibility_matrix_1, 'pi_star.txt')
-        self.write_to_file(responsibility_matrix_2, 'pi_star_star.txt')
+        #self.write_to_file(responsibility_matrix_1, 'pi_star.txt')
+        #self.write_to_file(responsibility_matrix_2, 'pi_star_star.txt')
 
         return responsibility_matrix_1, responsibility_matrix_2
 
@@ -347,7 +384,8 @@ class HMM:
 
         for state in range(self.num_states):
             square_diff = (self.observations - mean[state]) ** 2
-            sigma[state] = np.sum(responsibility_matrix_1[state, :] * square_diff) / np.sum(responsibility_matrix_1[state,:])
+            sigma[state] = np.sum(responsibility_matrix_1[state, :] * square_diff) / np.sum(
+                responsibility_matrix_1[state, :])
 
         # print('sigma:', sigma.shape)
 
@@ -365,7 +403,8 @@ class HMM:
 
         return matrix
 
-    def _normalize_along_timestamp(self, matrix, total_time_stamps):
+    @staticmethod
+    def _normalize_along_timestamp(matrix, total_time_stamps):
         # normalize to make the column sum to 1
         for time_stamp in range(total_time_stamps):
             matrix[:, time_stamp] = matrix[:, time_stamp] / np.sum(matrix[:, time_stamp])
@@ -374,12 +413,16 @@ class HMM:
 
     def write_to_file(self, matrix, f_name):
         out = open(
-            f'/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/{f_name}',
+            f'{self.output_path}/{f_name}',
             'w+')
 
         for col in range(matrix.shape[1]):
             data = ' '.join([str(val) for val in matrix[:, col]])
             out.write(data + '\n')
+
+    def set_hmm_params(self, learned_transitions, learned_gaussian_params):
+        self.transition_probs = learned_transitions
+        self.gaussian_params = learned_gaussian_params
 
 
 class FileHandler:
@@ -408,16 +451,23 @@ if __name__ == '__main__':
         temp = [float(params) for params in parameters[index].split()]
         gaussian_params.append(temp)
 
+    output_directory_path = './Output'
+
+    if not os.path.exists(output_directory_path):
+        os.makedirs(output_directory_path)
+
     hmm = HMM(
         transition_probs=np.array(transition_probs),
         gaussian_params=np.array(gaussian_params),
         num_states=num_states,
-        observations=np.array(observations)
+        observations=np.array(observations),
+        output_path=output_directory_path
     )
 
     hmm.show_hmm_params()
-    hmm.set_initial_probs()
-    # hmm.generate_most_probable_states()
-    hmm.baulm_welch_learn()
-    # hmm.viterbi()
-    # print(hmm.observations)
+    hmm.set_initial_probs(hmm.transition_probs)
+    hmm.generate_most_probable_states()
+
+    estimated_transition_probs, estimated_gaussian_params = hmm.baulm_welch_learn(useRandom=False, epochs=10)
+    hmm.set_hmm_params(estimated_transition_probs, estimated_gaussian_params)
+    hmm.generate_most_probable_states(with_learning=True)
