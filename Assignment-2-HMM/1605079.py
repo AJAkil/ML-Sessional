@@ -1,7 +1,10 @@
 import numpy as np
 import os
 from statistics import NormalDist
+<<<<<<< HEAD
 import argparse
+=======
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
 np.random.seed(79)
 
@@ -61,6 +64,12 @@ class HMM:
         probability_matrix = np.zeros((self.num_states, total_time_stamps))
         max_state_index_tracker = np.zeros((self.num_states, total_time_stamps)).astype(np.int32)
 
+<<<<<<< HEAD
+=======
+        assert probability_matrix.shape == (self.num_states, total_time_stamps)
+        assert max_state_index_tracker.shape == (self.num_states, total_time_stamps)
+
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
         # setting the initial state of the probability matrix and the max state tracker matrix
         for state_no in range(self.num_states):
             probability_matrix[state_no, 0] = np.log(self.initial_state[state_no] *
@@ -82,12 +91,18 @@ class HMM:
                     P[a2] = np.max(temp [something, something])
                 """
 
+<<<<<<< HEAD
                 # checking to see if any value is zero before passing to log
                 assert np.all(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state)
 
                 # calculate temp value by slicing
                 temp = probability_matrix[:, time_stamp - 1].reshape(num_states, 1) \
                        + np.log((self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state))
+=======
+                # calculate temp value by slicing
+                temp = probability_matrix[:, time_stamp - 1].reshape(num_states, 1) \
+                       + np.log(self.transition_probs[:, state_no].reshape(num_states, 1) * emission_current_state)
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
                 assert temp.shape == (num_states, 1)
 
@@ -105,6 +120,7 @@ class HMM:
         for time_stamp in reversed(range(1, total_time_stamps)):
             hidden_states[time_stamp - 1] = max_state_index_tracker[hidden_states[time_stamp], time_stamp]
 
+<<<<<<< HEAD
         print('Viterbi Algorithm Ran!')
         return hidden_states, probability_matrix, max_state_index_tracker
 
@@ -122,6 +138,35 @@ class HMM:
 
         output.writelines(most_probable_states)
         print()
+=======
+        return hidden_states, probability_matrix, max_state_index_tracker
+
+    def generate_most_probable_states(self, with_learning=False):
+        output_file_name = 'output_learning.txt' if with_learning else 'output.txt'
+        hidden_states, probability_matrix, state_index = self.run_viterbi()
+        most_probable_states = ["\"El Nino\"\n" if state == 0 else "\"La Nina\"\n" for state in hidden_states]
+
+        output = open(
+            f'{self.output_path}/{output_file_name}',
+            'w+')
+        # probaility = open(
+        #     '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/probabilities.txt',
+        #     'w+')
+        #
+        # state = open(
+        #     '/home/akil/Work/Work/Academics/4-2/ML/Assignment-2-HMM/Sample input and output for HMM/Output/state.txt',
+        #     'w+')
+
+        output.writelines(most_probable_states)
+
+        # for col in range(probability_matrix.shape[1]):
+        #     data = ' '.join([str(val) for val in probability_matrix[:, col]])
+        #     probaility.write(data + '\n')
+        #
+        # for col in range(state_index.shape[1]):
+        #     data = ' '.join([str(val) for val in state_index[:, col]])
+        #     state.write(data + '\n')
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
     def _get_emission_prob(self, state_no, time_stamp):
         prob_dist_params = self.gaussian_params[:, state_no]
@@ -142,7 +187,11 @@ class HMM:
         forward_matrix = np.zeros((self.num_states, total_time_stamps), dtype=np.float64)
 
         self.set_initial_probs(transition_probs)
+<<<<<<< HEAD
         # print(self.initial_state)
+=======
+        #print(self.initial_state)
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
         # setting the initial state of the forward matrix
         for state_no in range(self.num_states):
             forward_matrix[state_no, 0] = self.initial_state[state_no] * \
@@ -172,6 +221,11 @@ class HMM:
 
                 assert temp.shape == (num_states, 1)
 
+<<<<<<< HEAD
+=======
+                p = np.sum(temp, axis=0)
+
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
                 # summing along the axes of the temp vector
                 forward_matrix[state_no, time_stamp] = np.sum(temp, axis=0)
 
@@ -265,6 +319,7 @@ class HMM:
 
         return responsibility_matrix_2
 
+<<<<<<< HEAD
     def baum_welch_learn(self, useRandom=False, epochs=10):
 
         if useRandom:
@@ -275,6 +330,15 @@ class HMM:
             self.transition_probs.shape[0], self.transition_probs.shape[1]))
             learned_transition_probs = learned_transition_probs / np.sum(learned_transition_probs, axis=1)[:,
                                                                   np.newaxis]
+=======
+    def baulm_welch_learn(self, useRandom=False, epochs=10):
+
+        if useRandom:
+            # print('In Random')
+            learned_gaussian_params = np.random.randint(low=80, high=180, size=(self.gaussian_params.shape[0], self.gaussian_params.shape[1]))
+            learned_transition_probs = np.random.uniform(low=0, high=1, size=(self.transition_probs.shape[0], self.transition_probs.shape[1]))
+            learned_transition_probs = learned_transition_probs / np.sum(learned_transition_probs, axis=1)[:, np.newaxis]
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
             # print(learned_transition_probs)
             # print(learned_gaussian_params)
         else:
@@ -283,6 +347,10 @@ class HMM:
         # print('initial', learned_transition_probs)
         # print(learned_gaussian_params)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
         # responsibility_matrix_1, responsibility_matrix_2 = self.e_step(learned_transition_probs, learned_gaussian_params)
         # learned_transition_probs, learned_gaussian_params = self.m_step(responsibility_matrix_1,
         #                                                                 responsibility_matrix_2)
@@ -296,16 +364,25 @@ class HMM:
                 print(f'Ran {iteration} iteration')
             responsibility_matrix_1, responsibility_matrix_2 = self.e_step(learned_transition_probs,
                                                                            learned_gaussian_params)
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
             learned_transition_probs, learned_gaussian_params = self.m_step(responsibility_matrix_1,
                                                                             responsibility_matrix_2)
 
             convergence_criteria = np.sum(np.abs(prev_transitions - learned_transition_probs)) \
                                    + np.sum(np.abs(prev_gaussian_params - learned_gaussian_params))
 
+<<<<<<< HEAD
             # print('convergence criteria', convergence_criteria)
             if convergence_criteria < 0.00001:
                 print(f'Parameter Estimation Converged at {iteration} iteration')
+=======
+            #print('convergence criteria', convergence_criteria)
+            if convergence_criteria < 0.00001:
+                print(f'Parameter Estimation Converged at {iteration + 1} iteration')
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
                 break
 
             # if np.abs(prev_gaussian_params[0, 0] - learned_gaussian_params[0, 0]) < 0.000001:
@@ -321,6 +398,7 @@ class HMM:
 
         self.generate_parameter_output_file(learned_transition_probs, learned_gaussian_params)
 
+<<<<<<< HEAD
         print('Baum-Welch Algorithm Ran. Writing Learned Parameters to ./Output/')
 
         return learned_transition_probs, learned_gaussian_params
@@ -330,21 +408,51 @@ class HMM:
         assert transition_probs.shape == (self.num_states, self.num_states)
         assert gaussian_parameters.shape == (2, self.num_states)
 
+=======
+        return learned_transition_probs, learned_gaussian_params
+
+    def generate_parameter_output_file(self, learned_transition_probs, learned_gaussian_params):
+        parameter_file = open(
+            f'{self.output_path}/Parameters.txt',
+            'w+')
+
+        parameter_file.write(str(self.num_states) + '\n')
+
+        for state in range(self.num_states):
+            parameter_file.write('    '.join([str(t) for t in learned_transition_probs[state, :]]) + '\n')
+
+        for index in range(2):
+            parameter_file.write('    '.join([str(t) for t in learned_gaussian_params[index, :]]) + '\n')
+
+        parameter_file.write('    '.join([str(p) for p in self.initial_state]) + '\n')
+
+    def e_step(self, transition_probs, gaussian_parameters):
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
         forward_matrix, f_sink = self.calculate_forward_probs(transition_probs, gaussian_parameters)
         # print('f_sink: ', f_sink)
         backward_matrix = self.calculate_backward_probs(transition_probs, gaussian_parameters)
         # print('forward matrices:', forward_matrix[:, :50])
         # print('backward matrices:', backward_matrix[:, :50])
 
+<<<<<<< HEAD
         # self.write_to_file(forward_matrix, 'forward.txt')
         # self.write_to_file(backward_matrix, 'backward.txt')
+=======
+        #self.write_to_file(forward_matrix, 'forward.txt')
+        #self.write_to_file(backward_matrix, 'backward.txt')
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
         responsibility_matrix_1 = self.calculate_responsibility_matrix_1(forward_matrix, backward_matrix, f_sink)
         responsibility_matrix_2 = self.calculate_responsibility_matrix_2(forward_matrix, backward_matrix, f_sink,
                                                                          gaussian_parameters, transition_probs)
 
+<<<<<<< HEAD
         # self.write_to_file(responsibility_matrix_1, 'pi_star.txt')
         # self.write_to_file(responsibility_matrix_2, 'pi_star_star.txt')
+=======
+        #self.write_to_file(responsibility_matrix_1, 'pi_star.txt')
+        #self.write_to_file(responsibility_matrix_2, 'pi_star_star.txt')
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
         return responsibility_matrix_1, responsibility_matrix_2
 
@@ -407,6 +515,7 @@ class HMM:
         self.transition_probs = learned_transitions
         self.gaussian_params = learned_gaussian_params
 
+<<<<<<< HEAD
     def generate_parameter_output_file(self, learned_transition_probs, learned_gaussian_params):
         parameter_file = open(
             f'{self.output_path}/Parameters_learned.txt',
@@ -421,10 +530,16 @@ class HMM:
             parameter_file.write('    '.join([str(t) for t in learned_gaussian_params[index, :]]) + '\n')
 
         parameter_file.write('    '.join([str(p) for p in self.initial_state]) + '\n')
+=======
+
+class FileHandler:
+    pass
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
 
 if __name__ == '__main__':
 
+<<<<<<< HEAD
     parser = argparse.ArgumentParser(
         description='path to input file')
 
@@ -453,6 +568,10 @@ if __name__ == '__main__':
 
     observations = open(input_file_path, 'r').readlines()
     parameters = open(parameter_file_path, 'r').readlines()
+=======
+    observations = open('./Sample input and output for HMM/Input/data.txt', 'r').readlines()
+    parameters = open('./Sample input and output for HMM/Input/parameters.txt.txt', 'r').readlines()
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
 
     parameters = [params.strip() for params in parameters]
     observations = [float(y.strip()) for y in observations]
@@ -484,6 +603,7 @@ if __name__ == '__main__':
         output_path=output_directory_path
     )
 
+<<<<<<< HEAD
     # hmm.show_hmm_params()
 
     if algorithm == 'viterbi':
@@ -502,3 +622,12 @@ if __name__ == '__main__':
         estimated_transition_probs, estimated_gaussian_params = hmm.baum_welch_learn(useRandom=False, epochs=10)
         hmm.set_hmm_params(estimated_transition_probs, estimated_gaussian_params)
         hmm.generate_most_probable_states(with_learning=True)
+=======
+    hmm.show_hmm_params()
+    hmm.set_initial_probs(hmm.transition_probs)
+    hmm.generate_most_probable_states()
+
+    estimated_transition_probs, estimated_gaussian_params = hmm.baulm_welch_learn(useRandom=False, epochs=10)
+    hmm.set_hmm_params(estimated_transition_probs, estimated_gaussian_params)
+    hmm.generate_most_probable_states(with_learning=True)
+>>>>>>> 4ac3c13078168c5aa2e607a73f0c6526fc7a234a
