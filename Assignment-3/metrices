@@ -1,0 +1,11 @@
+MNIST - epoch: 10 lr: 0.001 -- done
+
+
+MNIST - epoch: 10 lr: 0.02 -- done
+
+
+CIFER - epoch: 20 lr: 0.001 -- unfinished
+
+CIFER - epoch: 10 lr: 0.02 -- going on
+
+CIFER - epoch 10 lr: 0.01 -- next
