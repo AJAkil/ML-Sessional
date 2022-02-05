@@ -6,8 +6,5 @@ ReLU
 Pool 2 2
 Conv 100 5 1 0
 ReLU
-Conv 14 5 1 3
-ReLU
-FC 15
 FC 10
 Softmax

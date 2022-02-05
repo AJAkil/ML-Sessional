@@ -86,7 +86,6 @@ class Cifer10DataLoader:
                                                                                                                   1).astype(
                 "float")
             labels = np.array(labels)
-            print(labels.shape)
 
             return images, labels
 
@@ -123,7 +122,7 @@ class Cifer10DataLoader:
         self.assert_data_shape()
 
         for key, data in self.data.items():
-            print(f'Shape: {data.shape}')
+            print(f'{key} Shape: {data.shape}')
 
     def assert_data_shape(self):
         assert self.data['train_images'].shape == (50000, 32, 32, 3)
@@ -231,7 +230,6 @@ class InputLayer:
 class Convolution2D:
     # class variable
     layer_num = 1
-    file_name = 'weights.txt'
 
     def __init__(self, num_out_channel, filter_size, stride, padding_size):
         self.num_out_channel = num_out_channel
@@ -247,16 +245,7 @@ class Convolution2D:
         self.layer_name = 'Conv2D__' + str(self.__class__.layer_num)
         self.__class__.layer_num += 1
         self.is_trainable = True
-        self.training_mode = False
         self.activation_prev_current_layer_cache = None
-
-        print('The layer name: ', self.layer_name, self.layer_num)
-
-    def toggle_training_mode(self):
-        if not self.training_mode:
-            self.training_mode = True
-        else:
-            self.training_mode = False
 
     def initialize_output_dimensions(self, prev_layer_output_dim):
         """
@@ -273,116 +262,11 @@ class Convolution2D:
         Initializes weights with the proper dimensions
         :return:
         """
-        # print('he: parameters: ', (self.h_prev * self.w_prev * self.num_channel_prev))
+
         self.W = np.random.randn(self.filter_size, self.filter_size, self.num_channel_prev,
                                  self.num_out_channel) * np.sqrt(
             2 / (self.h_prev * self.w_prev * self.num_channel_prev))
         self.b = np.zeros((1, 1, 1, self.num_out_channel))
-
-    def forward_wob(self, Z_prev, is_training):
-        """
-        Performs a forward operation of the convolution layer
-        :param Z_prev: The activation of the previous layer
-        :param is_training: whether we are in training mode or not
-        :return:
-        """
-
-        assert Z_prev.shape == (self.h_prev, self.w_prev, self.num_channel_prev)
-        Z_prev = np.array(Z_prev, copy=True)
-
-        # create zero padded Z_prev
-        Z_prev_padded = Utility.zero_pad_without_batch(Z_prev, self.padding_size)
-        self.output_tensor = np.zeros((self.h_new, self.w_new, self.num_out_channel))
-
-        # Apply convolution operation over this zero padded previous activation
-        for row in range(self.h_new):
-
-            row_start = row * self.stride
-
-            for col in range(self.w_new):
-
-                col_start = col * self.stride
-
-                for output_channel_index in range(self.num_out_channel):
-                    Z_prev_windowed = Z_prev_padded[
-                                      row_start: row_start + self.filter_size,
-                                      col_start: col_start + self.filter_size,
-                                      :
-                                      ]
-
-                    conv_step_W = self.W[:, :, :, output_channel_index]
-                    conv_step_b = self.b[:, :, :, output_channel_index]
-
-                    self.output_tensor[row, col, output_channel_index] = Utility.convolve_single_step(Z_prev_windowed,
-                                                                                                      conv_step_W,
-                                                                                                      conv_step_b)
-
-        # asserting output shape
-        assert (self.output_tensor.shape == (self.h_new, self.w_new, self.num_out_channel))
-
-        if is_training:
-            # cache some values
-            pass
-
-        # perform activation element wise in this case
-        print(f'In forward of Convolution output tensor shape before relu {self.output_tensor.shape}')
-        self.output_tensor = self.relu_activation.activation_f(self.output_tensor)
-
-        # asserting output shape
-        # assert(self.output_tensor.shape == (self.h_new, self.w_new, self.num_out_channel))
-        print(f'In forward of CNN output tensor shape after relu {self.output_tensor.shape}')
-
-    def forward_batch(self, Z_prev, is_training=True):
-        """
-        Performs a forward operation of the convolution layer
-        :param Z_prev: The activation of the previous layer
-        :param is_training: whether we are in training mode or not
-        :return:
-        """
-        batch_size = Z_prev.shape[0]
-        assert Z_prev.shape == (batch_size, self.h_prev, self.w_prev, self.num_channel_prev)
-
-        self.output_tensor = np.zeros((batch_size, self.h_new, self.w_new, self.num_out_channel))
-        Z_prev = np.array(Z_prev, copy=True)
-
-        # create zero padded Z_prev
-        print(f'Z prev shape:{Z_prev.shape}')
-        Z_prev_padded = Utility.zero_pad(Z_prev, self.padding_size)
-
-        # Apply convolution operation over this zero padded previous activation
-        for image_index in range(batch_size):
-            current_Z_prev_padded = Z_prev_padded[image_index]  # choosing a single tensor from the batch
-            for row in range(self.h_new):
-
-                row_start = row * self.stride
-
-                for col in range(self.w_new):
-
-                    col_start = col * self.stride
-
-                    for output_channel_index in range(self.num_out_channel):
-                        Z_prev_windowed = current_Z_prev_padded[
-                                          row_start: row_start + self.filter_size,
-                                          col_start: col_start + self.filter_size,
-                                          :
-                                          ]
-
-                        conv_step_W = self.W[:, :, :, output_channel_index]
-                        conv_step_b = self.b[:, :, :, output_channel_index]
-
-                        self.output_tensor[image_index, row, col, output_channel_index] = Utility.convolve_single_step(
-                            Z_prev_windowed, conv_step_W, conv_step_b)
-
-        # asserting output shape
-        assert (self.output_tensor.shape == (batch_size, self.h_new, self.w_new, self.num_out_channel))
-        print(self.output_tensor.shape)
-
-        if is_training:
-            # cache some values
-            pass
-
-        # perform activation element wise in this case
-        # self.output_tensor = self.relu_activation.activation_f(self.output_tensor)
 
     def forward(self, Z_prev):
         """
@@ -391,7 +275,7 @@ class Convolution2D:
         :param is_training: whether we are in training mode or not
         :return:
         """
-        # print(Z_prev.shape)
+
         batch_size = Z_prev.shape[0]
         assert Z_prev.shape == (batch_size, self.h_prev, self.w_prev, self.num_channel_prev)
 
@@ -403,7 +287,6 @@ class Convolution2D:
         Z_prev = np.array(Z_prev, copy=True)
 
         # create zero padded Z_prev
-        # print(f'Z prev shape:{Z_prev.shape}')
         Z_prev_padded = Utility.zero_pad(Z_prev, self.padding_size)
 
         # Apply convolution operation over this zero padded previous activation
@@ -422,84 +305,12 @@ class Convolution2D:
                     conv_step_W = self.W[:, :, :, output_channel_index]
                     conv_step_b = self.b[:, :, :, output_channel_index]
 
-                    # print('z shape', Z_prev_windowed.shape)
-                    # print('w shape', conv_step_W.shape)
-
-                    # self.output_tensor[:, row, col, output_channel_index] = np.sum(
-                    #     Z_prev_windowed * conv_step_W,
-                    #     axis=(1,2,3)
-                    # ) + conv_step_b
-
                     self.output_tensor[:, row, col, output_channel_index] = Utility.convolve_single_step_over_batch(
                         Z_prev_windowed, conv_step_W, conv_step_b
                     )
 
             # asserting output shape
             assert (self.output_tensor.shape == (batch_size, self.h_new, self.w_new, self.num_out_channel))
-            # print('output tensor shape:', self.output_tensor.shape)
-
-            if self.training_mode:
-                # cache some values
-                pass
-            # # perform activation element wise in this case
-            # self.output_tensor = self.relu_activation.activation_f(self.output_tensor)
-
-    def forward_(self, Z_prev):
-        """
-        Performs a forward operation of the convolution layer
-        :param Z_prev: The activation of the previous layer
-        :param is_training: whether we are in training mode or not
-        :return:
-        """
-        print(Z_prev.shape)
-        batch_size = Z_prev.shape[0]
-        assert Z_prev.shape == (batch_size, self.h_prev, self.w_prev, self.num_channel_prev)
-
-        self.output_tensor = np.zeros((batch_size, self.h_new, self.w_new, self.num_out_channel))
-        Z_prev = np.array(Z_prev, copy=True)
-
-        # create zero padded Z_prev
-        # print(f'Z prev shape:{Z_prev.shape}')
-        Z_prev_padded = Utility.zero_pad(Z_prev, self.padding_size)
-
-        # Apply convolution operation over this zero padded previous activation
-        for row in range(self.h_new):
-
-            row_start = row * self.stride
-
-            for col in range(self.w_new):
-                col_start = col * self.stride
-
-                Z_prev_windowed = Z_prev_padded[:, row_start: row_start + self.filter_size,
-                                  col_start: col_start + self.filter_size, :, np.newaxis]
-
-                conv_step_W = self.W[np.newaxis, :, :, :, :]
-                conv_step_b = self.b[:, :, :, :]
-
-                # print('z shape', Z_prev_windowed.shape)
-                # print('w shape', conv_step_W.shape)
-
-                # self.output_tensor[:, row, col, output_channel_index] = np.sum(
-                #     Z_prev_windowed * conv_step_W,
-                #     axis=(1,2,3)
-                # ) + conv_step_b
-
-                self.output_tensor[:, row, col, :] = Utility.convolve_single_step_over_batch(
-                    Z_prev_windowed, conv_step_W, conv_step_b
-                )
-
-            # asserting output shape
-            assert (self.output_tensor.shape == (batch_size, self.h_new, self.w_new, self.num_out_channel))
-            # print('output tensor shape:', self.output_tensor.shape)
-
-            if self.training_mode:
-                # cache some values
-                pass
-
-            return self.output_tensor
-
-            # # perform activation element wise in this case
-            # self.output_tensor = self.relu_activation.activation_f(self.output_tensor)
 
     def get_output_tensor(self):
         return self.output_tensor
@@ -532,12 +343,7 @@ class Convolution2D:
                     col_start:col_start + self.filter_size, :] += self.W[np.newaxis, :, :, :,
                                                                   output_channel_index] * dZ[:, row:row + 1,
                                                                                           col:col + 1, np.newaxis,
-                                                                                          output_channel_index]  # done works
-
-                    # print('a_slice:', a_slice.shape)
-                    # print('dZ:', dZ[:, h:h+1, w:w+1, np.newaxis, c].shape)
-                    # s = a_slice * dZ[:, h:h+1, w:w+1, np.newaxis, c]
-                    # print('s shape:', s.shape)
+                                                                                          output_channel_index]
 
                     dW[:, :, :, output_channel_index] += np.sum(
                         activation_slice * dZ[:, row:row + 1, col:col + 1, np.newaxis, output_channel_index], axis=0)
@@ -545,7 +351,7 @@ class Convolution2D:
                     db[:, :, :, output_channel_index] += np.sum(dZ[:, row:row + 1, col:col + 1, output_channel_index],
                                                                 axis=(0, 1, 2))
 
-        # unpad the dActivation_padded
+        # un-pad the dActivation_padded
         if self.padding_size != 0:
             dActivation_prev[:, :, :, :] = dActivation_prev_padded[:,
                                            self.padding_size:-self.padding_size,
@@ -566,8 +372,6 @@ class Convolution2D:
 
         self.update_CNN_parameters(dW, db, learning_rate=learning_rate)
 
-        # print('output of cnn backward:', dActivation_prev)
-        # print('shape of output cnn backward: ', dActivation_prev.shape)
         return dActivation_prev
 
     def initialize_gradients(self, mini_batch_size):
@@ -580,25 +384,8 @@ class Convolution2D:
         return dActivation_prev, dW, db
 
     def update_CNN_parameters(self, dW: np.array, db: np.array, learning_rate: float):
-        # print(f'learning rate: {learning_rate}')
         self.W = self.W - learning_rate * dW
         self.b = self.b - learning_rate * db
-
-        # print('------------------ccccccccccccccccccccc----------------------------')
-        # print(f'layer {self.layer_name} W updated: {self.W}')
-        # print(f'layer {self.layer_name} b updated: {self.b}')
-
-        f = open(self.file_name, 'a+')
-
-        f.write(f'W of {self.layer_name} layer: \n')
-        f.write(str(self.W))
-        f.write("\n")
-
-        f.write(f'b of {self.layer_name} layer: \n')
-        f.write(str(self.b))
-        f.write('\n')
-
-        f.close()
 
     def print_layer_dimensions(self):
         print(f'Output Tensor Dimensions: {self.output_tensor.shape}')
@@ -623,14 +410,7 @@ class MaxPool:
         self.layer_name = 'MaxPool__' + str(self.layer_num)
         self.__class__.layer_num += 1
         self.is_trainable = False
-        self.training_mode = False
         self.activation_prev_cached = None
-
-    def toggle_training_mode(self):
-        if not self.training_mode:
-            self.training_mode = True
-        else:
-            self.training_mode = False
 
     def initialize_max_pool_params(self, prev_layer_output_dim):
         """
@@ -642,39 +422,6 @@ class MaxPool:
         self.h_new = int((self.h_prev - self.filter_size) / self.stride + 1)
         self.w_new = int((self.w_prev - self.filter_size) / self.stride + 1)
         self.num_out_channel = self.num_channel_prev
-
-    def forward_wob(self, Z_prev, is_training):
-
-        # print('prev z shape in maxpool:', Z_prev.shape)
-        assert Z_prev.shape == (self.h_prev, self.w_prev, self.num_channel_prev)
-        # print('here')
-        Z_prev = np.array(Z_prev, copy=True)
-        # print('there')
-        self.output_tensor = np.zeros((self.h_new, self.w_new, self.num_out_channel))
-
-        # print('Going for max pooling')
-        # Apply convolution operation over this zero padded previous activation
-        for row in range(self.h_new):
-
-            row_start = row * self.stride
-
-            for col in range(self.w_new):
-
-                col_start = col * self.stride
-
-                for output_channel_index in range(self.num_out_channel):
-                    Z_prev_windowed = Z_prev[
-                                      row_start: row_start + self.filter_size,
-                                      col_start: col_start + self.filter_size,
-                                      output_channel_index
-                                      ]
-
-                    self.output_tensor[row, col, output_channel_index] = Utility.get_max_pool_window(Z_prev_windowed)
-
-        assert self.output_tensor.shape == (self.h_new, self.w_new, self.num_out_channel)
-        if is_training:
-            pass
-        print('Max pool forward done')
 
     def forward(self, Z_prev):
 
@@ -706,37 +453,6 @@ class MaxPool:
                         Z_prev_windowed)
 
         assert self.output_tensor.shape == (batch_size, self.h_new, self.w_new, self.num_out_channel)
-        if self.training_mode:
-            pass
-
-    def forward_(self, Z_prev):
-
-        batch_size = Z_prev.shape[0]
-        assert Z_prev.shape == (batch_size, self.h_prev, self.w_prev, self.num_channel_prev)
-        self.activation_prev_cached = Z_prev
-
-        self.output_tensor = np.zeros((batch_size, self.h_new, self.w_new, self.num_out_channel))
-        Z_prev = np.array(Z_prev, copy=True)
-
-        # Apply convolution operation over this zero padded previous activation
-        for row in range(self.h_new):
-
-            row_start = row * self.stride
-
-            for col in range(self.w_new):
-                col_start = col * self.stride
-
-                Z_prev_windowed = Z_prev[:,
-                                  row_start: row_start + self.filter_size,
-                                  col_start: col_start + self.filter_size,
-                                  :
-                                  ]
-
-                self.output_tensor[:, row, col, :] = Utility.get_max_pool_window_over_batch(Z_prev_windowed)
-
-        assert self.output_tensor.shape == (batch_size, self.h_new, self.w_new, self.num_out_channel)
-        if self.training_mode:
-            pass
 
     def print_layer_dimensions(self):
         print(f'Output Tensor Dimensions: {self.output_tensor.shape}')
@@ -744,74 +460,9 @@ class MaxPool:
     def get_output_tensor(self):
         return self.output_tensor
 
-    # WOB
-    def backward_(self, dActivation_pool: np.array):
-
-        dActivation_pool_prev = np.zeros_like(self.activation_prev_cached)
-        print(dActivation_pool_prev.shape)
-        mini_batch_size = self.activation_prev_cached.shape[0]
-        print('mini batch size:', mini_batch_size)
-
-        for batch_index in range(mini_batch_size):
-            # first select a fixed tensor from the batch
-            activation_prev = self.activation_prev_cached[batch_index, :, :, :]
-
-            # print('dA shape:', dA.shape)
-            # print('h:', self.h_new)
-            # print('w:', self.w_new)
-            # print('c:', self.num_out_channel)
-
-            for row in range(self.h_new):
-
-                for col in range(self.w_new):
-
-                    for output_channel_index in range(self.num_out_channel):
-                        row_start = row * self.stride
-                        row_end = row * self.stride + self.filter_size
-                        col_start = col * self.stride
-                        col_end = col * self.stride + self.filter_size
-
-                        activation_prev_window = activation_prev[
-                                                 row_start: row_end,
-                                                 col_start: col_end,
-                                                 output_channel_index
-                                                 ]
-
-                        # print('before the mask:', activation_prev_window)
-                        mask = Utility.get_mask_from_tensor(activation_prev_window)
-                        # print('the mashk:', mask)
-                        # print(dActivation_pool.shape)
-                        # print('batch index: ', batch_index)
-                        # print('row: ', row)
-                        # print('col: ', col)
-                        # print('output channel index: ', output_channel_index)
-                        # s = dActivation_pool[batch_index, row, col, output_channel_index]
-                        dActivation_pool_prev[batch_index, row_start: row_end, col_start: col_end,
-                        output_channel_index] += dActivation_pool[batch_index, row, col, output_channel_index] * mask
-
-                        # print(f'for batch {batch_index} {dActivation_pool_prev[batch_index,row: row + self.filter_size,col: col + self.filter_size,output_channel_index]}')
-
-        # print(dActivation_pool.shape)
-        # print(self.activation_prev_cached.shape)
-        assert dActivation_pool_prev.shape == self.activation_prev_cached.shape
-        print('-----------------------------------------------------------------------')
-        print('Output of backward pooling non batched: ', dActivation_pool_prev)
-        return dActivation_pool_prev
-
-    # With Batching
     def backward(self, dActivation_pool: np.array):
 
-        last_mask = None
-        last_dA = None
-
-        # print('sssssssssssssssssssssssssssssssssssssssssssss')
-        # print('dA from previous:', dActivation_pool)
-        # print()
-
         dActivation_pool_prev = np.zeros_like(self.activation_prev_cached)
-        # print(self.activation_prev_cached.shape)
-        mini_batch_size = self.activation_prev_cached.shape[0]
-        # print('mini batch size:', mini_batch_size)
 
         for row in range(self.h_new):
             row_start = row * self.stride
@@ -820,10 +471,8 @@ class MaxPool:
                 for output_channel_index in range(self.num_out_channel):
                     activation_prev_window = self.activation_prev_cached[:, row_start: row_start + self.filter_size,
                                              col_start: col_start + self.filter_size, output_channel_index]
-                    # print('before the mask:', activation_prev_window)
+
                     mask = Utility.get_mask_from_tensor_batch(activation_prev_window)
-                    # last_mask = mask
-                    # last_dA = dActivation_pool[:,  row: row + 1,  col: col + 1, output_channel_index]
 
                     dActivation_pool_prev[:, row_start: row_start + self.filter_size,
                     col_start: col_start + self.filter_size, output_channel_index] += dActivation_pool[:, row: row + 1,
@@ -831,13 +480,7 @@ class MaxPool:
                                                                                       output_channel_index] * mask
 
         assert dActivation_pool_prev.shape == self.activation_prev_cached.shape
-        # print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-        # print('mask shape:', last_mask.shape)
-        # print('the mask:', last_mask)
-        #
-        # print('the dA:', last_dA)
-        # print('------------------------------------------------')
-        # print('In pooling output custom:  -- dA', dActivation_pool_prev)
+
         return dActivation_pool_prev
 
     def get_output_dimension(self):
@@ -904,7 +547,6 @@ class Flatten:
 class DenseLayer:
     # class variable
     layer_num = 1
-    file_name = './weights.txt'
 
     def __init__(self, num_units):
         self.W = None
@@ -917,19 +559,10 @@ class DenseLayer:
         self.layer_name = 'Dense__' + str(self.__class__.layer_num)
         self.__class__.layer_num += 1
         self.is_trainable = True
-        self.training_mode = False
-
-    def toggle_training_mode(self):
-        if not self.training_mode:
-            self.training_mode = True
-        else:
-            self.training_mode = False
 
     def initialize_dense_layer_weights_biases(self, prev_layer_output_dim):
         self.W = np.random.randn(self.num_units, prev_layer_output_dim) * np.sqrt(2 / prev_layer_output_dim)
         self.b = np.zeros((self.num_units, 1))  # will be broadcast to (hidden_units, batch_size) before addition
-
-        # print('W dense: ', self.W)
 
     def forward(self, A_prev_layer):
         """
@@ -937,8 +570,6 @@ class DenseLayer:
         :return:
         """
 
-        # print('starting of dense: ', A_prev_layer)
-        # print(f'A_prev_layer shape: {A_prev_layer.shape}')
         assert A_prev_layer.shape[1] == self.W.shape[1]
 
         self.A_prev_layer_cached = A_prev_layer
@@ -953,9 +584,6 @@ class DenseLayer:
 
         # assert the output tensor shape should be (num_hidden_units, batch size)
         assert self.output_tensor.shape == (A_prev_layer_reshaped.shape[1], self.num_units)
-
-        if self.training_mode:
-            pass
 
     def get_output_tensor(self):
         return self.output_tensor
@@ -975,16 +603,8 @@ class DenseLayer:
         mini_batch_size = dZ.shape[0]
         dW = (1 / mini_batch_size) * np.dot(dZ.T, A_prev_layer)  # (num unit, 1) * (1, x) --> (num unit, x)
         db = (1 / mini_batch_size) * np.sum(dZ.T, axis=1, keepdims=True)
-        # dW =  np.dot(dZ.T, A_prev_layer) # (num unit, 1) * (1, x) --> (num unit, x)
         dA_prev_layer = np.dot(dZ, self.W)
-        # db = np.sum(dZ.T, axis=1, keepdims=True)
 
-        # print('dW', dW)
-        # print('dB', db)
-
-        # print(dW.shape)
-        # print(db.shape)
-        # print(self.b.shape)
         assert dW.shape == self.W.shape
         assert db.shape == self.b.shape
         assert dA_prev_layer.shape == A_prev_layer.shape
@@ -1001,24 +621,8 @@ class DenseLayer:
         print(f'Bias Dimension: {self.b.shape}')
 
     def update_parameters(self, dW: np.array, db: np.array, learning_rate: float):
-        # print('updating parameters', learning_rate)
         self.W = self.W - (dW * learning_rate)
         self.b = self.b - (db * learning_rate)
-
-        # print(f'Weight of {self.layer_name} : {self.W}')
-        # print(f'Bias of {self.layer_name} : {self.b}')
-
-        f = open(self.file_name, 'w+')
-
-        f.write(f'W of {self.layer_name} layer: \n')
-        f.write(str(self.W))
-        f.write("\n")
-
-        f.write(f'b of {self.layer_name} layer: \n')
-        f.write(str(self.b))
-        f.write('\n')
-
-        f.close()
 
 
 class Utility:
@@ -1098,7 +702,7 @@ class Utility:
 
         with open(file_path) as f:
             file_lines = [line.strip() for line in f.readlines()]
-            print(file_lines)
+            # print(file_lines)
 
             first_dense_layer_index = -1
             for index in range(len(file_lines)):
@@ -1142,9 +746,9 @@ class Utility:
 
 class Model:
     def __init__(self):
-        self.layers = None # a list of layer object according to input
-        self.layer_w_gradients = dict() # {'layer name': dw}
-        self.layer_b_gradients = dict() # {'layer name': db}
+        self.layers = None  # a list of layer object according to input
+        self.layer_w_gradients = dict()  # {'layer name': dw}
+        self.layer_b_gradients = dict()  # {'layer name': db}
         self.epochs = None
         self.cost_function = None
         self.history = {
@@ -1162,31 +766,28 @@ class Model:
         This method initializes the layers in the model providing the input dimension that the layers expect to get
         :return: None
         """
-        #InputLayer(input_dimension=input_dimension, is_trainable=False, layer_name='Input')
+        # InputLayer(input_dimension=input_dimension, is_trainable=False, layer_name='Input')
 
         assert self.layers[0].layer_name == 'Input'
 
         for previous_layer, current_layer in zip(self.layers, self.layers[1:]):
             prev_output_dim = None
             if previous_layer.layer_name == 'Input':
-                prev_output_dim = previous_layer.input_dimension # H, W, Color Channel
+                prev_output_dim = previous_layer.input_dimension  # H, W, Color Channel
             else:
                 prev_output_dim = previous_layer.get_output_dimension()
 
-
             if current_layer.layer_name.startswith('Conv2D__'):
-                current_layer.initialize_output_dimensions(prev_output_dim) # H, W, Color Channel
+                current_layer.initialize_output_dimensions(prev_output_dim)  # H, W, Color Channel
                 current_layer.initialize_weights_biases()
             elif current_layer.layer_name.startswith('MaxPool__'):
-                print(prev_output_dim)
-                current_layer.initialize_max_pool_params(prev_output_dim) # H, W, Color Channel
+                current_layer.initialize_max_pool_params(prev_output_dim)  # H, W, Color Channel
             elif current_layer.layer_name.startswith('Dense__'):
-                current_layer.initialize_dense_layer_weights_biases(prev_output_dim) # flatten layer dimension
+                current_layer.initialize_dense_layer_weights_biases(prev_output_dim)  # flatten layer dimension
             elif current_layer.layer_name.startswith('Flatten__'):
-                current_layer.initialize_flatten_layer_dimensions(prev_output_dim) # (new_h, new_w, new_channel)
-            elif current_layer.layer_name.startswith("ReLU") or current_layer.layer_name.startswith("Softmax") :
-                current_layer.set_input_tensor_dimension(prev_output_dim) # for the activation layers
-
+                current_layer.initialize_flatten_layer_dimensions(prev_output_dim)  # (new_h, new_w, new_channel)
+            elif current_layer.layer_name.startswith("ReLU") or current_layer.layer_name.startswith("Softmax"):
+                current_layer.set_input_tensor_dimension(prev_output_dim)  # for the activation layers
 
     def compile(self, cost_function):
         self.cost_function = cost_function
@@ -1205,11 +806,10 @@ class Model:
 
         for e in range(epochs):
             # each epoch will run through a training once and update weights
-            print(f'Running Epoch: {e+1}')
+            print(f'Running Epoch: {e + 1}')
             X_train, Y_train = training_data
             total_data = X_train.shape[0]
-            num_of_mini_batches = total_data//mini_batch_size
-
+            num_of_mini_batches = total_data // mini_batch_size
 
             # first we create the mini batches and then run training step through it
             i = 1
@@ -1225,54 +825,21 @@ class Model:
                 # print('final output:', Y_pred)
                 y_pred_one_hot_encoded = Y_pred == Y_pred.max(axis=1).reshape(Y_pred.shape[0], 1)
 
-                #print('Y_pred shape: {}')
-                #print(metrics.classification_report(Y.argmax(axis=1), y_pred_one_hot_encoded.argmax(axis=1)))
+                # print('Y_pred shape: {}')
+                # print(metrics.classification_report(Y.argmax(axis=1), y_pred_one_hot_encoded.argmax(axis=1)))
                 # batch_correct = np.sum(Y.argmax(axis=1) == y_pred_one_hot_encoded.argmax(axis=1))
                 # batch_acc = batch_correct / mini_batch_size
                 # print(f'Batch correct: {batch_correct} out of {mini_batch_size}')
                 # print(f'Batch Acc: {batch_acc * 100} %')
-                self.backward_propagation(Y_pred,Y, learning_rate, mini_batch_size)
-                #train_loss = self.cost_function.compute_cost(Y_pred, Y)
-                #print(f'Loss per batch: {train_loss * 100} %')
+                self.backward_propagation(Y_pred, Y, learning_rate, mini_batch_size)
+                # train_loss = self.cost_function.compute_cost(Y_pred, Y)
+                # print(f'Loss per batch: {train_loss * 100} %')
                 print("\rProgress {:1.1%}".format(i / num_of_mini_batches), end="")
                 i += 1
 
             print()
-            self.calculate_metrics(X_train=X_train, Y_train=Y_train, X_validation=X_validation, Y_validation=Y_validation, epoch=e)
-
-            # Y_train_pred_all = self.forward_propagation(X_train)
-            # Y_train_pred_all_one_hot_encoded = Y_train_pred_all == Y_train_pred_all.max(axis=1).reshape(Y_train_pred_all.shape[0], 1)
-            #
-            # print(metrics.classification_report(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1)))
-            # print('macro f1 train set: ')
-            # print(metrics.f1_score(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1), average='macro'))
-            #
-            # train_loss = self.cost_function.compute_cost(Y_train_pred_all, Y_train)
-            # print(f'Train Loss After a Epoch {e+1}: {train_loss * 100} %')
-            # self.history['train_loss'].append((train_loss * 100))
-            #
-            # train_correct = np.sum(Y_train.argmax(axis=1) == Y_train_pred_all_one_hot_encoded.argmax(axis=1))
-            # train_acc = train_correct / Y_train.shape[0]
-            # print(f'Train Acc: {train_acc * 100} %')
-            # self.history['train_acc'].append((train_acc * 100))
-            #
-            # # calculate validation accuracy and loss here
-            # print('--------------Running On validation data-----------------')
-            # Y_validation_pred = self.forward_propagation(X_validation)
-            # Y__validation_pred_one_hot_encoded = Y_validation_pred == Y_validation_pred.max(axis=1).reshape(Y_validation_pred.shape[0], 1)
-            #
-            # print(metrics.classification_report(Y_validation.argmax(axis=1), Y__validation_pred_one_hot_encoded.argmax(axis=1)))
-            # print('macro f1 validation set: ')
-            # print(metrics.f1_score(Y_validation.argmax(axis=1), Y__validation_pred_one_hot_encoded.argmax(axis=1), average='macro'))
-            #
-            # validation_loss = self.cost_function.compute_cost(Y_validation_pred, Y_validation)
-            # print(f'Validation Loss After a Epoch {e+1}: {validation_loss * 100} %')
-            # self.history['validation_loss'].append((validation_loss * 100))
-            #
-            # val_correct = np.sum(Y_validation.argmax(axis=1) == Y__validation_pred_one_hot_encoded.argmax(axis=1))
-            # val_acc = val_correct / Y_validation.shape[0]
-            # print(f'Validation Acc: {val_acc * 100} %')
-            # self.history['validation_acc'].append((val_acc * 100))
+            self.calculate_metrics(X_train=X_train, Y_train=Y_train, X_validation=X_validation,
+                                   Y_validation=Y_validation, epoch=e)
 
         print('Finished Training!')
 
@@ -1294,7 +861,6 @@ class Model:
         test_acc = test_correct / Y_test.shape[0]
         print(f'Test Acc: {test_acc * 100} %')
 
-
     def forward_propagation(self, X_train) -> np.array:
         """
         Performs a forward pass through the network
@@ -1307,41 +873,30 @@ class Model:
         input = X_train
         for layer in self.layers[1:]:
             # skipping the input layer
-            #print(f'Forward for layer {layer.layer_name}')
-            if not layer.layer_name.startswith('ReLU') and not layer.layer_name.startswith('Softmax') and not layer.layer_name.startswith('Flatten'):
-                layer.toggle_training_mode() # toggling training mode for a layer
+            # print(f'Forward for layer {layer.layer_name}')
             layer.forward(input)
-            input = layer.output_tensor # getting the output tensor of the layer to be the input tensor to the next
-            #print(f'Output of layer {layer.layer_name}\n: {input}')
-
-            if not layer.layer_name.startswith('ReLU') and not layer.layer_name.startswith('Softmax') and not layer.layer_name.startswith('Flatten'):
-                layer.toggle_training_mode() # turning the training mode off here
-
-
+            input = layer.output_tensor  # getting the output tensor of the layer to be the input tensor to the next
+            # print(f'Output of layer {layer.layer_name}\n: {input}')
 
         return input
 
     def backward_propagation(self, Y_out, Y, learning_rate, mini_batch_size):
-        #print('here')
 
-        # dA = (Y_out - Y) / mini_batch_size
-        # print(f'In backpropagation: {self.layers[1].W}')
         dA = Y_out - Y
-        #print('yhat - Y', dA)
+
         for layer in reversed(self.layers[1:]):
-            #print(f'Running backward for layer {layer.layer_name}')
+
             if layer.is_trainable:
                 dA = layer.backward(dA, learning_rate)
             else:
                 dA = layer.backward(dA)
 
-
     def plot_metrics(self):
-        epochs = range(0,self.epochs)
+        epochs = range(0, self.epochs)
         plt.plot(epochs, self.history['train_acc'])
         plt.plot(epochs, self.history['validation_acc'])
         plt.title('model accuracy')
-        plt.ylabel('accuracy')
+        plt.ylabel('accuracy %')
         plt.xlabel('epoch')
         plt.legend(['train', 'validation'], loc='upper left')
         plt.show()
@@ -1349,24 +904,25 @@ class Model:
         plt.plot(epochs, self.history['train_loss'])
         plt.plot(epochs, self.history['validation_loss'])
         plt.title('model loss')
-        plt.ylabel('loss')
+        plt.ylabel('loss %')
         plt.xlabel('epoch')
         plt.legend(['train', 'validation'], loc='upper left')
         plt.show()
 
-
     def calculate_metrics(self, X_train, Y_train, X_validation, Y_validation, epoch):
         print('--------------Running On all training data-----------------')
         Y_train_pred_all = self.forward_propagation(X_train)
-        Y_train_pred_all_one_hot_encoded = Y_train_pred_all == Y_train_pred_all.max(axis=1).reshape(Y_train_pred_all.shape[0], 1)
+        Y_train_pred_all_one_hot_encoded = Y_train_pred_all == Y_train_pred_all.max(axis=1).reshape(
+            Y_train_pred_all.shape[0], 1)
 
         print(metrics.classification_report(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1)))
         print('macro f1 train set: ')
-        print(metrics.f1_score(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1), average='macro'))
+        print(
+            metrics.f1_score(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1), average='macro'))
 
         train_loss = self.cost_function.compute_cost(Y_train_pred_all, Y_train)
-        print(f'Train Loss After a Epoch {epoch+1}: {train_loss * 100} %')
-        self.history['train_loss'].append((train_loss * 100))
+        print(f'Train Loss After a Epoch {epoch + 1}: {train_loss}')
+        self.history['train_loss'].append(train_loss)
 
         train_correct = np.sum(Y_train.argmax(axis=1) == Y_train_pred_all_one_hot_encoded.argmax(axis=1))
         train_acc = train_correct / Y_train.shape[0]
@@ -1376,15 +932,18 @@ class Model:
         # calculate validation accuracy and loss here
         print('--------------Running On validation data-----------------')
         Y_validation_pred = self.forward_propagation(X_validation)
-        Y__validation_pred_one_hot_encoded = Y_validation_pred == Y_validation_pred.max(axis=1).reshape(Y_validation_pred.shape[0], 1)
+        Y__validation_pred_one_hot_encoded = Y_validation_pred == Y_validation_pred.max(axis=1).reshape(
+            Y_validation_pred.shape[0], 1)
 
-        print(metrics.classification_report(Y_validation.argmax(axis=1), Y__validation_pred_one_hot_encoded.argmax(axis=1)))
+        print(metrics.classification_report(Y_validation.argmax(axis=1),
+                                            Y__validation_pred_one_hot_encoded.argmax(axis=1)))
         print('macro f1 validation set: ')
-        print(metrics.f1_score(Y_validation.argmax(axis=1), Y__validation_pred_one_hot_encoded.argmax(axis=1), average='macro'))
+        print(metrics.f1_score(Y_validation.argmax(axis=1), Y__validation_pred_one_hot_encoded.argmax(axis=1),
+                               average='macro'))
 
         validation_loss = self.cost_function.compute_cost(Y_validation_pred, Y_validation)
-        print(f'Validation Loss After a Epoch {epoch+1}: {validation_loss * 100} %')
-        self.history['validation_loss'].append((validation_loss * 100))
+        print(f'Validation Loss After a Epoch {epoch + 1}: {validation_loss}')
+        self.history['validation_loss'].append(validation_loss)
 
         val_correct = np.sum(Y_validation.argmax(axis=1) == Y__validation_pred_one_hot_encoded.argmax(axis=1))
         val_acc = val_correct / Y_validation.shape[0]
@@ -1393,13 +952,6 @@ class Model:
 
 
 def run_mnist_model():
-    np.random.seed(1)
-    cnn = Model()
-    cnn.add(Utility.read_model_config('./input.txt', mnist))
-    cnn.compile(cost_function=CrossEntropyLoss())
-    cnn.initializer_layer_params()
-if __name__ == '__main__':
-
     """
     MNIST setup
     """
@@ -1413,7 +965,52 @@ if __name__ == '__main__':
     X_test = mnist.data[mnist.data_list[2]]
     Y_test = mnist.data[mnist.data_list[3]]
 
-    print(X_train.shape)
-    print(Y_train.shape)
-    print(X_test.shape)
-    print(Y_test.shape)
+    print('\n------------------MNIST Shape------------------\n')
+    print(f'Train Images Shape: {X_train.shape}')
+    print(f'Train Labels Shape: {Y_train.shape}')
+    print(f'Test Images Shape: {X_test.shape}')
+    print(f'Test Labels Shape: {Y_test.shape}')
+
+    print("\n------------------ Model Configuration------------------\n")
+    np.random.seed(1)
+    cnn = Model()
+    cnn.add(Utility.read_model_config('./input.txt', mnist))
+    cnn.compile(cost_function=CrossEntropyLoss())
+    cnn.initializer_layer_params()
+
+    print('\n------------------Training Started------------------\n')
+    cnn.train(training_data=(X_train, Y_train), epochs=10, learning_rate=0.02, test_data=(X_test, Y_test),
+              mini_batch_size=32)
+
+    cnn.plot_metrics()
+
+
+def run_cifer_model():
+    cifer_dataloader = Cifer10DataLoader('./dataset/cifer-10/cifar-10-python/cifar-10-batches-py')
+
+    print('\n------------------CIFER-10 Shape------------------\n')
+    cifer_dataloader.concatenate_data()
+    cifer_dataloader.preprocess_data()
+
+    X_train = cifer_dataloader.data['train_images']
+    Y_train = cifer_dataloader.data['train_labels']
+    X_test = cifer_dataloader.data['test_images']
+    Y_test = cifer_dataloader.data['test_labels']
+
+    print("\n------------------ Model Configuration------------------\n")
+    np.random.seed(1)
+    cnn = Model()
+    cnn.add(Utility.read_model_config('./input.txt', cifer_dataloader))
+    cnn.compile(cost_function=CrossEntropyLoss())
+    cnn.initializer_layer_params()
+
+    print('\n------------------Training Started------------------\n')
+    cnn.train(training_data=(X_train, Y_train), epochs=10, learning_rate=0.02, test_data=(X_test, Y_test),
+              mini_batch_size=32)
+
+    cnn.plot_metrics()
+
+
+if __name__ == '__main__':
+    run_mnist_model()
+    #run_cifer_model()
