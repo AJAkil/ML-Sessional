@@ -1,10 +1,12 @@
-Conv 6 5 1 2
+Conv 16 5 1 2
 ReLU
 Pool 2 2
-Conv 12 5 1 0
+Conv 20 5 1 2
 ReLU
 Pool 2 2
-Conv 100 5 1 0
+Conv 20 5 1 2
 ReLU
+Pool 2 2
+Flatten
 FC 10
 Softmax

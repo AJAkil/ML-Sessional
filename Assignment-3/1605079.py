@@ -281,7 +281,7 @@ class Convolution2D:
 
         self.output_tensor = np.zeros((batch_size, self.h_new, self.w_new, self.num_out_channel))
 
-        # storing the activation for the bac propagation
+        # storing the activation for the back propagation
         self.activation_prev_current_layer_cache = Z_prev
 
         Z_prev = np.array(Z_prev, copy=True)
@@ -321,7 +321,6 @@ class Convolution2D:
         # initialize gradient shape
         dActivation_prev, dW, db = self.initialize_gradients(mini_batch_size=mini_batch_size)
 
-        # do required padding
         activation_prev_padded = Utility.zero_pad(self.activation_prev_current_layer_cache, self.padding_size)
         dActivation_prev_padded = Utility.zero_pad(dActivation_prev, self.padding_size)
 
@@ -334,11 +333,10 @@ class Convolution2D:
                 col_start = col * self.stride
 
                 for output_channel_index in range(self.num_out_channel):
-                    # Use the corners to define the slice from a_prev_pad
+
                     activation_slice = activation_prev_padded[:, row_start:row_start + self.filter_size,
                                        col_start:col_start + self.filter_size, :]
 
-                    # Update gradients for the window and the filter's parameters using the code formulas given above
                     dActivation_prev_padded[:, row_start:row_start + self.filter_size,
                     col_start:col_start + self.filter_size, :] += self.W[np.newaxis, :, :, :,
                                                                   output_channel_index] * dZ[:, row:row + 1,
@@ -351,7 +349,7 @@ class Convolution2D:
                     db[:, :, :, output_channel_index] += np.sum(dZ[:, row:row + 1, col:col + 1, output_channel_index],
                                                                 axis=(0, 1, 2))
 
-        # un-pad the dActivation_padded
+
         if self.padding_size != 0:
             dActivation_prev[:, :, :, :] = dActivation_prev_padded[:,
                                            self.padding_size:-self.padding_size,
@@ -675,8 +673,6 @@ class Utility:
 
     @staticmethod
     def get_max_pool_window_over_batch(Z_prev_windowed: np.array):
-        # print('In max pool', Z_prev_windowed.shape)
-        # print(np.max(Z_prev_windowed, axis=(1,2)))
         return np.max(Z_prev_windowed, axis=(1, 2))
 
     @staticmethod
@@ -747,8 +743,6 @@ class Utility:
 class Model:
     def __init__(self):
         self.layers = None  # a list of layer object according to input
-        self.layer_w_gradients = dict()  # {'layer name': dw}
-        self.layer_b_gradients = dict()  # {'layer name': db}
         self.epochs = None
         self.cost_function = None
         self.history = {
@@ -800,9 +794,7 @@ class Model:
         X_validation, X_test, Y_validation, Y_test = train_test_split(
             X_test, Y_test, test_size=0.5, shuffle=False, random_state=1
         )
-        # print(X_validation.shape)
-        # print(Y_validation.shape)
-        # print(Y_validation[0:5])
+
 
         for e in range(epochs):
             # each epoch will run through a training once and update weights
@@ -813,27 +805,13 @@ class Model:
 
             # first we create the mini batches and then run training step through it
             i = 1
-            batch_correct = 0
-            train_loss = 0
             for X, Y in Utility.create_mini_batches(X=X_train, Y=Y_train, mini_batch_size=mini_batch_size):
                 """
                 X shape --> (mini_batch_size, h, w, color_channel)
                 Y shape --> (mini_batch_size, num_of_class) (one hot encoded vector)
                 """
                 Y_pred = self.forward_propagation(X)
-                # print('final input shape', Y_pred.shape)
-                # print('final output:', Y_pred)
-                y_pred_one_hot_encoded = Y_pred == Y_pred.max(axis=1).reshape(Y_pred.shape[0], 1)
-
-                # print('Y_pred shape: {}')
-                # print(metrics.classification_report(Y.argmax(axis=1), y_pred_one_hot_encoded.argmax(axis=1)))
-                # batch_correct = np.sum(Y.argmax(axis=1) == y_pred_one_hot_encoded.argmax(axis=1))
-                # batch_acc = batch_correct / mini_batch_size
-                # print(f'Batch correct: {batch_correct} out of {mini_batch_size}')
-                # print(f'Batch Acc: {batch_acc * 100} %')
                 self.backward_propagation(Y_pred, Y, learning_rate, mini_batch_size)
-                # train_loss = self.cost_function.compute_cost(Y_pred, Y)
-                # print(f'Loss per batch: {train_loss * 100} %')
                 print("\rProgress {:1.1%}".format(i / num_of_mini_batches), end="")
                 i += 1
 
@@ -855,7 +833,7 @@ class Model:
         print(metrics.f1_score(Y_test.argmax(axis=1), Y_test_pred_one_hot_encoded.argmax(axis=1), average='macro'))
 
         test_loss = self.cost_function.compute_cost(Y_test_pred, Y_test)
-        print(f'Train Loss : {test_loss * 100} %')
+        print(f'Test Loss : {test_loss}')
 
         test_correct = np.sum(Y_test.argmax(axis=1) == Y_test_pred_one_hot_encoded.argmax(axis=1))
         test_acc = test_correct / Y_test.shape[0]
@@ -910,24 +888,24 @@ class Model:
         plt.show()
 
     def calculate_metrics(self, X_train, Y_train, X_validation, Y_validation, epoch):
-        print('--------------Running On all training data-----------------')
-        Y_train_pred_all = self.forward_propagation(X_train)
-        Y_train_pred_all_one_hot_encoded = Y_train_pred_all == Y_train_pred_all.max(axis=1).reshape(
-            Y_train_pred_all.shape[0], 1)
+        # print('--------------Running On all training data-----------------')
+        # Y_train_pred_all = self.forward_propagation(X_train)
+        # Y_train_pred_all_one_hot_encoded = Y_train_pred_all == Y_train_pred_all.max(axis=1).reshape(
+        #     Y_train_pred_all.shape[0], 1)
 
-        print(metrics.classification_report(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1)))
-        print('macro f1 train set: ')
-        print(
-            metrics.f1_score(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1), average='macro'))
+        # print(metrics.classification_report(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1)))
+        # print('macro f1 train set: ')
+        # print(
+        #     metrics.f1_score(Y_train.argmax(axis=1), Y_train_pred_all_one_hot_encoded.argmax(axis=1), average='macro'))
 
-        train_loss = self.cost_function.compute_cost(Y_train_pred_all, Y_train)
-        print(f'Train Loss After a Epoch {epoch + 1}: {train_loss}')
-        self.history['train_loss'].append(train_loss)
+        # train_loss = self.cost_function.compute_cost(Y_train_pred_all, Y_train)
+        # print(f'Train Loss After a Epoch {epoch + 1}: {train_loss}')
+        # self.history['train_loss'].append(train_loss)
 
-        train_correct = np.sum(Y_train.argmax(axis=1) == Y_train_pred_all_one_hot_encoded.argmax(axis=1))
-        train_acc = train_correct / Y_train.shape[0]
-        print(f'Train Acc: {train_acc * 100} %')
-        self.history['train_acc'].append((train_acc * 100))
+        # train_correct = np.sum(Y_train.argmax(axis=1) == Y_train_pred_all_one_hot_encoded.argmax(axis=1))
+        # train_acc = train_correct / Y_train.shape[0]
+        # print(f'Train Acc: {train_acc * 100} %')
+        # self.history['train_acc'].append((train_acc * 100))
 
         # calculate validation accuracy and loss here
         print('--------------Running On validation data-----------------')
@@ -982,7 +960,7 @@ def run_mnist_model():
     cnn.train(training_data=(X_train, Y_train), epochs=10, learning_rate=0.02, test_data=(X_test, Y_test),
               mini_batch_size=32)
 
-    cnn.plot_metrics()
+    #cnn.plot_metrics()
 
 
 def run_cifer_model():
@@ -1005,10 +983,10 @@ def run_cifer_model():
     cnn.initializer_layer_params()
 
     print('\n------------------Training Started------------------\n')
-    cnn.train(training_data=(X_train, Y_train), epochs=10, learning_rate=0.02, test_data=(X_test, Y_test),
+    cnn.train(training_data=(X_train, Y_train), epochs=1, learning_rate=0.02, test_data=(X_test, Y_test),
               mini_batch_size=32)
 
-    cnn.plot_metrics()
+    #cnn.plot_metrics()
 
 
 if __name__ == '__main__':
